@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from app.controllers import events, packages, tickets
 
-app = FastAPI(title="Event Manager API (Peewee+FastAPI)")
+app = FastAPI(title="Event Manager API")
 
 app.include_router(events.router)
 app.include_router(packages.router)
