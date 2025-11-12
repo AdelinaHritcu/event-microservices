@@ -42,6 +42,7 @@ class PackageOut(WithLinks):
     description: Optional[str] = None
     class Config: from_attributes = True
 
+
 # TICKETS
 class TicketIn(BaseModel):
     code: str
