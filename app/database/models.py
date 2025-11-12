@@ -2,7 +2,7 @@ from peewee import (
     Model, AutoField, IntegerField, CharField, TextField, ForeignKeyField,
     CompositeKey, Check
 )
-from connection import db
+from app.database.connection import db
 
 class BaseModel(Model):
     class Meta:
