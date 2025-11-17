@@ -1,42 +1,88 @@
 from typing import Optional
+
+from app.database.models import Event, Package
 from app.repositories import packages_repo
 
-def _links(p_id:int):
-    base = f"/api/event-manager/packages/{p_id}"
-    return {
-        "self": {"href": base, "type": "GET"},
-        "parent": {"href": "/api/event-manager/packages", "type": "GET"},
-        "events": {"href": f"{base}/events", "type": "GET"},
+
+def compute_available_tickets(package: Package) -> Optional[int]:
+    if package.total_seats is None:
+        return None
+    sold = packages_repo.count_sold_tickets(package)
+    return max(package.total_seats - sold, 0)
+
+
+def list_packages(
+    page: int,
+    per_page: int,
+    available_tickets: Optional[int] = None,
+    type_query: Optional[str] = None,
+) -> tuple[list[tuple[Package, Optional[int]]], int]:
+    if type_query:
+        packages = packages_repo.list_by_description_contains(type_query)
+    else:
+        packages = packages_repo.list_all()
+
+    items: list[tuple[Package, Optional[int]]] = []
+    for package in packages:
+        available = compute_available_tickets(package)
+        if available_tickets is not None:
+            if available is None or available < available_tickets:
+                continue
+        items.append((package, available))
+
+    total = len(items)
+    start = (page - 1) * per_page
+    end = start + per_page
+
+    return items[start:end], total
+
+
+def get_package(package_id: int) -> Package:
+    return packages_repo.get_by_id(package_id)
+
+
+def create_package(
+    id_owner: int,
+    name: str,
+    location: str,
+    description: Optional[str],
+    total_seats: Optional[int],
+) -> Package:
+    data = {
+        "id_owner": id_owner,
+        "name": name,
+        "location": location,
+        "description": description,
+        "total_seats": total_seats,
     }
+    return packages_repo.create(data)
 
-def list_packages(*, page:int, per_page:int, name:Optional[str], location:Optional[str]):
-    items, total = packages_repo.list_packages(name=name, location=location, page=page, per_page=per_page)
-    payload = [ {"id":p.id,"id_owner":p.id_owner,"name":p.name,"location":p.location,
-                 "description":p.description,"_links":_links(p.id)} for p in items ]
-    return {"total": total, "page": page, "items_per_page": per_page, "items": payload}
 
-def get_package(pkg_id:int):
-    p = packages_repo.get_package(pkg_id)
-    if not p: return None
-    return {"id":p.id,"id_owner":p.id_owner,"name":p.name,"location":p.location,
-            "description":p.description,"_links":_links(p.id)}
+def update_package(
+    package: Package,
+    name: Optional[str],
+    location: Optional[str],
+    description: Optional[str],
+    total_seats: Optional[int],
+) -> Package:
+    data: dict = {}
+    if name is not None:
+        data["name"] = name
+    if location is not None:
+        data["location"] = location
+    if description is not None:
+        data["description"] = description
+    if total_seats is not None:
+        data["total_seats"] = total_seats
+    return packages_repo.update(package, data)
 
-def create_package(data):
-    p = packages_repo.create_package(data.dict())
-    return get_package(p.id)
 
-def update_package(pkg_id:int, data):
-    p = packages_repo.update_package(pkg_id, {k:v for k,v in data.dict().items() if v is not None})
-    if not p: return 404, None
-    return 200, get_package(pkg_id)
+def delete_package(package: Package) -> None:
+    packages_repo.delete(package)
 
-def delete_package(pkg_id:int):
-    return 204 if packages_repo.delete_package(pkg_id) else 404
 
-def add_event(pkg_id:int, event_id:int, allocated_seats:int|None=None):
-    ok = packages_repo.add_event_to_package(pkg_id, event_id, allocated_seats)
-    return 204 if ok else 404
+def list_events_for_package(package_id: int) -> list[Event]:
+    return packages_repo.list_events_for_package(package_id)
 
-def list_events(pkg_id:int):
-    events = packages_repo.list_events_for_package(pkg_id)
-    return [{"id":e.id,"name":e.name,"location":e.location}] if events else []
+def list_packages_for_event(event_id: int) -> list[Package]:
+    return packages_repo.list_packages_for_event(event_id)

@@ -20,7 +20,7 @@ def list_events(*, page:int, per_page:int, name:Optional[str], location:Optional
             "description": e.description, "total_seats": e.total_seats,
             "available_seats": available, "_links": _links(e.id),
         })
-    return {"total": total, "page": page, "items_per_page": per_page, "items": payload}
+    return payload, total
 
 def get_event(event_id:int):
     e = events_repo.get_event(event_id)
