@@ -7,7 +7,8 @@ from pydantic import BaseModel, Field
 from app.controllers.deps import get_db
 from app.services import packages_service
 from app.database.models import Package, Event
-
+from app.dtos.schemas import TicketIn
+from app.services import tickets_service
 
 router = APIRouter(
     prefix="/api/event-manager/event-packets",
@@ -70,6 +71,7 @@ def list_event_packets(
     items_per_page: int = Query(10, ge=1, le=100),
     available_tickets: Optional[int] = Query(None, ge=0),
     event_type: Optional[str] = Query(None, alias="type"),
+    event_name: Optional[str] = Query(None),
     db=Depends(get_db),
 ):
     rows, total = packages_service.list_packages(
@@ -77,6 +79,7 @@ def list_event_packets(
         per_page=items_per_page,
         available_tickets=available_tickets,
         type_query=event_type,
+        event_name=event_name,
     )
 
     items = [
@@ -86,19 +89,22 @@ def list_event_packets(
 
     base_href = "/api/event-manager/event-packets"
 
+    q_av = "" if available_tickets is None else f"&available_tickets={available_tickets}"
+    q_type = "" if not event_type else f"&type={event_type}"
+    q_ev = "" if not event_name else f"&event_name={event_name}"
+
+    self_href = f"{base_href}?page={page}&items_per_page={items_per_page}{q_av}{q_type}{q_ev}"
+
     return {
         "items": items,
         "page": page,
         "items_per_page": items_per_page,
         "total_items": total,
         "_links": {
-            "self": {
-                "href": f"{base_href}?page={page}&items_per_page={items_per_page}"
-            },
+            "self": {"href": self_href},
             "parent": {"href": base_href},
         },
     }
-
 
 @router.get("/{package_id}")
 def get_event_packet(
@@ -186,3 +192,31 @@ def list_events_for_event_packet(
             "parent": {"href": f"{base_href}/{package_id}"},
         },
     }
+
+@router.get("/{package_id}/tickets")
+def list_package_tickets(
+    package_id: int,
+    page: int = Query(0, ge=0),
+    items_per_page: int = Query(10, ge=1, le=100),
+    db=Depends(get_db),
+):
+    return tickets_service.list_tickets(
+        page=page,
+        per_page=items_per_page,
+        package_id=package_id,
+    )
+
+@router.post("/{package_id}/tickets", status_code=201)
+def create_package_ticket(
+    package_id: int,
+    data: TicketIn,
+    db=Depends(get_db),
+):
+    payload = data.model_copy(update={
+        "package_id": package_id,
+        "event_id": None,
+    })
+
+    code, res = tickets_service.create_ticket(payload)
+    return res
+

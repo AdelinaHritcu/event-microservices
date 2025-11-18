@@ -88,10 +88,8 @@ class PackageListResponse(BaseModel):
     _links: dict[str, Any]
 
 class TicketIn(BaseModel):
-    code: str
     event_id: Optional[int] = None
     package_id: Optional[int] = None
-
 
 class TicketOut(WithLinks):
     code: str

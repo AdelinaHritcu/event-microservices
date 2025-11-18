@@ -1,6 +1,6 @@
 from typing import Optional
 
-from app.database.models import Event, Package
+from app.database.models import Event, Package, EventPackage
 from app.repositories import packages_repo
 
 
@@ -16,25 +16,33 @@ def list_packages(
     per_page: int,
     available_tickets: Optional[int] = None,
     type_query: Optional[str] = None,
-) -> tuple[list[tuple[Package, Optional[int]]], int]:
+    event_name: Optional[str] = None,
+):
+    q = Package.select().distinct()
+
     if type_query:
-        packages = packages_repo.list_by_description_contains(type_query)
-    else:
-        packages = packages_repo.list_all()
+        q = q.where(Package.description.contains(type_query))
 
-    items: list[tuple[Package, Optional[int]]] = []
-    for package in packages:
-        available = compute_available_tickets(package)
-        if available_tickets is not None:
-            if available is None or available < available_tickets:
-                continue
-        items.append((package, available))
+    if event_name:
+        q = (
+            q.join(EventPackage)
+             .join(Event)
+             .where(Event.name.contains(event_name))
+             .distinct()
+        )
 
-    total = len(items)
-    start = (page - 1) * per_page
-    end = start + per_page
+    total = q.count()
+    q = q.paginate(page, per_page)
 
-    return items[start:end], total
+    rows: list[tuple[Package, int]] = []
+
+    for p in q:
+        available = compute_available_tickets(p)
+        if available_tickets is not None and available < available_tickets:
+            continue
+        rows.append((p, available))
+
+    return rows, total
 
 
 def get_package(package_id: int) -> Package:

@@ -1,4 +1,6 @@
 from typing import Optional
+
+from app.database.models import Event
 from app.repositories import events_repo
 
 def _links(e_id:int):
@@ -9,18 +11,25 @@ def _links(e_id:int):
         "tickets": {"href": f"{base}/tickets", "type": "GET"},
     }
 
-def list_events(*, page:int, per_page:int, name:Optional[str], location:Optional[str]):
-    items, total = events_repo.list_events(name=name, location=location, page=page, per_page=per_page)
-    payload = []
-    for e in items:
-        sold = events_repo.count_sold_event_tickets(e.id)
-        available = None if e.total_seats is None else max(e.total_seats - sold, 0)
-        payload.append({
-            "id": e.id, "id_owner": e.id_owner, "name": e.name, "location": e.location,
-            "description": e.description, "total_seats": e.total_seats,
-            "available_seats": available, "_links": _links(e.id),
-        })
-    return payload, total
+def list_events(
+    page: int,
+    per_page: int,
+    name: Optional[str] = None,
+    location: Optional[str] = None,
+):
+    q = Event.select()
+
+    if name:
+        q = q.where(Event.name.contains(name))
+
+    if location:
+        q = q.where(Event.location.contains(location))
+
+    total = q.count()
+    events = q.paginate(page, per_page)
+
+    return list(events), total
+
 
 def get_event(event_id:int):
     e = events_repo.get_event(event_id)

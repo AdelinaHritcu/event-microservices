@@ -1,11 +1,11 @@
 from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
-
 from app.controllers.deps import get_db
 from app.database.models import Event
 from app.dtos.schemas import EventIn, EventOut, PackageListResponse, PackageItem
 from app.services import events_service, packages_service
+from app.dtos.schemas import TicketIn, TicketOut
+from app.services import tickets_service
 
 router = APIRouter(prefix="/api/event-manager/events", tags=["events"])
 
@@ -128,6 +128,7 @@ def delete_event(event_id: int, db=Depends(get_db)):
         )
     return None
 
+
 @router.get("/{event_id}/event-packets", response_model=PackageListResponse)
 def list_event_packets_for_event(
     event_id: int = Path(..., ge=1),
@@ -180,3 +181,40 @@ def list_event_packets_for_event(
             },
         },
     )
+
+
+@router.get("/{event_id}/tickets")
+def list_event_tickets(
+    event_id: int = Path(..., ge=1),
+    page: int = Query(0, ge=0),
+    items_per_page: int = Query(10, ge=1, le=100),
+    db=Depends(get_db),
+):
+    return tickets_service.list_tickets(
+        page=page,
+        per_page=items_per_page,
+        event_id=event_id,
+    )
+
+
+@router.post(
+    "/{event_id}/tickets",
+    status_code=status.HTTP_201_CREATED,
+    response_model=TicketOut,
+)
+def create_event_ticket(
+    event_id: int,
+    data: TicketIn,
+    db=Depends(get_db),
+):
+    payload = data.model_copy(update={
+        "event_id": event_id,
+        "package_id": None,
+    })
+
+    code, res = tickets_service.create_ticket(payload)
+    if code == 404:
+        raise HTTPException(status_code=404, detail="Event not found")
+    if code == 409:
+        raise HTTPException(status_code=409, detail="No more seats available for event")
+    return res

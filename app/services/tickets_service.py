@@ -1,29 +1,54 @@
-from app.repositories import tickets_repo
-from app.repositories import events_repo
+from app.repositories import tickets_repo, events_repo
+from app.dtos.schemas import TicketIn
+import uuid
 
-def _links(code:str):
+def _links(code: str):
     base = f"/api/event-manager/tickets/{code}"
-    return {"self":{"href":base,"type":"GET"}, "parent":{"href":"/api/event-manager/tickets","type":"GET"}}
+    return {
+        "self":   {"href": base, "type": "GET"},
+        "parent": {"href": "/api/event-manager/tickets", "type": "GET"},
+    }
 
-def list_tickets(page:int, per_page:int):
-    items, total = tickets_repo.list_tickets(page=page, per_page=per_page)
-    payload = [ {"code":t.code, "event_id":t.event_id, "package_id":t.package_id, "_links":_links(t.code)} for t in items ]
-    return {"total": total, "page": page, "items_per_page": per_page, "items": payload}
+def list_tickets(page: int, per_page: int,
+                 event_id: int | None = None,
+                 package_id: int | None = None):
+    items, total = tickets_repo.list_tickets(
+        page=page, per_page=per_page,
+        event_id=event_id, package_id=package_id,
+    )
+    payload = [
+        {
+            "code": t.code,
+            "event_id": t.event.id if t.event is not None else None,
+            "package_id": t.package.id if t.package is not None else None,
+            "_links": _links(t.code),
+        }
+        for t in items
+    ]
+    return {
+        "total": total,
+        "page": page,
+        "items_per_page": per_page,
+        "items": payload,
+    }
 
-def get_ticket(code:str):
+def get_ticket(code: str):
     t = tickets_repo.get_ticket(code)
-    if not t: return None
-    return {"code":t.code, "event_id":t.event_id, "package_id":t.package_id, "_links":_links(t.code)}
+    if not t:
+        return None
+    return {
+        "code": t.code,
+        "event_id": t.event.id if t.event is not None else None,
+        "package_id": t.package.id if t.package is not None else None,
+        "_links": _links(t.code),
+    }
 
-def create_ticket(data):
-    if data.event_id is not None:
-        sold = events_repo.count_sold_event_tickets(data.event_id)
-        ev = events_repo.get_event(data.event_id)
-        if not ev: return 404, None
-        if ev.total_seats is not None and sold >= ev.total_seats:
-            return 409, None
-    t = tickets_repo.create_ticket(data.dict())
+def create_ticket(data: TicketIn):
+    generated_code = uuid.uuid4().hex[:10].upper()
+    payload = data.model_dump()
+    payload["code"] = generated_code
+    t = tickets_repo.create_ticket(payload)
     return 201, get_ticket(t.code)
 
-def delete_ticket(code:str):
+def delete_ticket(code: str):
     return 204 if tickets_repo.delete_ticket(code) else 404
