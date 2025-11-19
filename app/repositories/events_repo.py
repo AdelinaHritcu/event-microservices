@@ -11,7 +11,7 @@ def list_events(*, name: Optional[str]=None, location: Optional[str]=None,
         q = q.where(Event.location == location)
 
     total = q.count()
-    items = q.order_by(Event.id.asc()).paginate(page, per_page)  # <-- fără +1
+    items = q.order_by(Event.id.asc()).paginate(page, per_page)
     return list(items), total
 
 def get_event(event_id:int) -> Optional[Event]:

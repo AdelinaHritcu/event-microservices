@@ -12,6 +12,7 @@ from app.dtos.clients_schemas import (
     TicketValidationRequest,
     TicketValidationResponse,
 )
+from app.services.clients_service import validate_ticket_for_client
 
 router = APIRouter(
     prefix="/api/event-manager/clients",
@@ -72,9 +73,6 @@ def create_client(payload: ClientIn):
         raise HTTPException(status_code=400, detail="Client already exists")
 
     doc = payload.model_dump(exclude_none=True)
-    if not isinstance(doc.get("tickets"), list):
-        doc["tickets"] = []
-
     try:
         result = clients_collection.insert_one(doc)
     except PyMongoError as e:
@@ -141,36 +139,10 @@ def delete_client(client_id: str):
     response_model=TicketValidationResponse,
 )
 def validate_ticket(client_id: str, payload: TicketValidationRequest):
-    try:
-        doc = clients_collection.find_one({"_id": ObjectId(client_id)})
-    except PyMongoError as e:
-        print("ERROR validate_ticket/find_one:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
+    result = validate_ticket_for_client(client_id, payload)
 
-    if not doc:
+    if result is None:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    ticket_ref = TicketRef(
-        ticket_code=payload.ticket_code,
-        mode="short",
-        event_name=None,
-        event_location=None,
-        package_name=None,
-    )
+    return result
 
-    try:
-        clients_collection.update_one(
-            {"_id": ObjectId(client_id)},
-            {"$addToSet": {"tickets": ticket_ref.model_dump()}},
-        )
-    except PyMongoError as e:
-        print("ERROR validate_ticket/update_one:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
-
-    return TicketValidationResponse(
-        valid=True,
-        event_name=None,
-        event_location=None,
-        package_name=None,
-        reason=None,
-    )

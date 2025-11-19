@@ -1,17 +1,17 @@
-from typing import Optional, List, Dict
-from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Literal
+from pydantic import BaseModel, Field, EmailStr
 
 
 class TicketRef(BaseModel):
     ticket_code: str
-    mode: str = Field("short", pattern="^(short|long)$")
+    mode: Literal["short", "long"] = "short"
     event_name: Optional[str] = None
     event_location: Optional[str] = None
     package_name: Optional[str] = None
 
 
 class ClientBase(BaseModel):
-    email: str
+    email: EmailStr
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     is_name_public: bool = True
@@ -19,7 +19,7 @@ class ClientBase(BaseModel):
 
 
 class ClientIn(ClientBase):
-    tickets: Optional[List[TicketRef]] = None
+    tickets: List[TicketRef] = Field(default_factory=list)
 
 
 class ClientOut(ClientBase):
