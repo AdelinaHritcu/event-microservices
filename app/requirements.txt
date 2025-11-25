@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+pymysql
+peewee
+python-dotenv
+pymongo
+requests
+email-validator

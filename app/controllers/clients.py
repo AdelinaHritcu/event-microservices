@@ -1,148 +1,114 @@
-from typing import List
+from fastapi import APIRouter, HTTPException
+from typing import Dict
 
-from fastapi import APIRouter, HTTPException, Query
-from bson import ObjectId
-from pymongo.errors import PyMongoError
-
-from app.database.mongo import clients_collection
+from app.services.clients_service import ClientsService
 from app.dtos.clients_schemas import (
     ClientIn,
     ClientOut,
-    TicketRef,
-    TicketValidationRequest,
-    TicketValidationResponse,
+    ClientTicketDetailsResponse,
+    Link
 )
-from app.services.clients_service import validate_ticket_for_client
+from app.dtos.tickets_schemas import AddTicketToClient
+
 
 router = APIRouter(
     prefix="/api/event-manager/clients",
-    tags=["clients"],
+    tags=["Clients"],
 )
 
-
-def _doc_to_out(doc: dict) -> ClientOut:
-    raw_tickets = doc.get("tickets")
-    if not isinstance(raw_tickets, list):
-        raw_tickets = []
-
-    tickets: List[TicketRef] = []
-    for item in raw_tickets:
-        if isinstance(item, dict):
-            try:
-                tickets.append(TicketRef(**item))
-            except Exception as e:
-                print("WARN bad ticket in client doc:", item, repr(e))
-
-    return ClientOut(
-        id=str(doc["_id"]),
-        email=doc["email"],
-        first_name=doc.get("first_name"),
-        last_name=doc.get("last_name"),
-        is_name_public=doc.get("is_name_public", True),
-        social_links=doc.get("social_links"),
-        tickets=tickets,
-    )
+BASE = "/api/event-manager/clients"
 
 
-@router.get("", response_model=list[ClientOut])
-def list_clients(
-    page: int = Query(1, ge=1),
-    items_per_page: int = Query(10, ge=1, le=100),
-):
-    skip = (page - 1) * items_per_page
-    try:
-        docs = list(
-            clients_collection.find().skip(skip).limit(items_per_page)
-        )
-    except PyMongoError as e:
-        print("ERROR list_clients:", repr(e))
-        return []
-
-    return [_doc_to_out(d) for d in docs]
+def _links(email: str) -> Dict[str, Link]:
+    return {
+        "self": Link(href=f"{BASE}/{email}", type="GET"),
+        "parent": Link(href=BASE, type="GET"),
+        "tickets": Link(href=f"{BASE}/{email}/tickets", type="GET"),
+    }
 
 
-@router.post("", response_model=ClientOut, status_code=201)
+@router.post("/", response_model=ClientOut, status_code=201)
 def create_client(payload: ClientIn):
-    try:
-        existing = clients_collection.find_one({"email": payload.email})
-    except PyMongoError as e:
-        print("ERROR create_client/find_one:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
-
-    if existing:
-        raise HTTPException(status_code=400, detail="Client already exists")
-
-    doc = payload.model_dump(exclude_none=True)
-    try:
-        result = clients_collection.insert_one(doc)
-    except PyMongoError as e:
-        print("ERROR create_client/insert_one:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
-
-    doc["_id"] = result.inserted_id
-    return _doc_to_out(doc)
+    created = ClientsService.create_client(payload)
+    if not created:
+        raise HTTPException(status_code=409, detail="Client already exists")
+    email = created["email"]
+    return ClientOut(**created, links=_links(email))
 
 
-@router.get("/{client_id}", response_model=ClientOut)
-def get_client(client_id: str):
-    try:
-        doc = clients_collection.find_one({"_id": ObjectId(client_id)})
-    except PyMongoError as e:
-        print("ERROR get_client:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
-
-    if not doc:
+@router.put("/{email}", response_model=ClientOut)
+def update_client(email: str, payload: ClientIn):
+    updated = ClientsService.update_client(email, payload)
+    if not updated:
         raise HTTPException(status_code=404, detail="Client not found")
+    return ClientOut(**updated, links=_links(email))
 
-    return _doc_to_out(doc)
+
+@router.get("/{email}", response_model=ClientOut)
+def get_client(email: str):
+    client = ClientsService.get_client(email)
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return ClientOut(**client, links=_links(email))
 
 
-@router.put("/{client_id}", response_model=ClientOut)
-def update_client(client_id: str, payload: ClientIn):
-    update_doc = payload.model_dump(exclude_none=True)
+@router.post("/{email}/tickets", response_model=ClientOut)
+def add_ticket_to_client(email: str, ticket: AddTicketToClient):
+    updated = ClientsService.add_ticket_to_client(email, ticket.model_dump())
+    if not updated:
+        raise HTTPException(status_code=404, detail="Client not found")
+    return ClientOut(**updated, links=_links(email))
 
-    try:
-        result = clients_collection.update_one(
-            {"_id": ObjectId(client_id)},
-            {"$set": update_doc},
+
+@router.get("/{email}/tickets/{ticket_code}", response_model=ClientTicketDetailsResponse)
+def validate_ticket(email: str, ticket_code: str):
+    ticket_info, error = ClientsService.validate_client_ticket(email, ticket_code)
+    if ticket_info is None:
+        return ClientTicketDetailsResponse(
+            client_email=email,
+            ticket_code=ticket_code,
+            is_valid=False,
+            event=None,
+            package=None
         )
-    except PyMongoError as e:
-        print("ERROR update_client/update_one:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
+    return ticket_info
 
-    if result.matched_count == 0:
+
+@router.get("/", response_model=dict)
+def list_clients(page: int = 1, items_per_page: int = 10):
+    clients, total = ClientsService.list_clients(page, items_per_page)
+
+    items = []
+    for c in clients:
+        items.append(
+            ClientOut(
+                **c,
+                links=_links(c["email"])
+            )
+        )
+
+    return {
+        "items": items,
+        "page": page,
+        "items_per_page": items_per_page,
+        "total_items": total,
+        "links": {
+            "self": Link(href=f"{BASE}?page={page}&items_per_page={items_per_page}", type="GET"),
+            "parent": Link(href=BASE, type="GET")
+        }
+    }
+
+@router.get("/{email}/tickets", response_model=dict)
+def list_client_tickets(email: str):
+    client = ClientsService.get_client(email)
+    if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
-    try:
-        doc = clients_collection.find_one({"_id": ObjectId(client_id)})
-    except PyMongoError as e:
-        print("ERROR update_client/find_one:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
-
-    return _doc_to_out(doc)
-
-
-@router.delete("/{client_id}", status_code=204)
-def delete_client(client_id: str):
-    try:
-        result = clients_collection.delete_one({"_id": ObjectId(client_id)})
-    except PyMongoError as e:
-        print("ERROR delete_client:", repr(e))
-        raise HTTPException(status_code=500, detail="Database error")
-
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Client not found")
-
-
-@router.post(
-    "/{client_id}/tickets/validate",
-    response_model=TicketValidationResponse,
-)
-def validate_ticket(client_id: str, payload: TicketValidationRequest):
-    result = validate_ticket_for_client(client_id, payload)
-
-    if result is None:
-        raise HTTPException(status_code=404, detail="Client not found")
-
-    return result
-
+    return {
+        "email": email,
+        "tickets": client.get("tickets", []),
+        "links": {
+            "self": Link(href=f"{BASE}/{email}/tickets", type="GET"),
+            "parent": Link(href=f"{BASE}/{email}", type="GET")
+        }
+    }

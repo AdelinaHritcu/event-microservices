@@ -1,17 +1,31 @@
-from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
+from typing import Optional, Dict, List
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Path, Request, status
+
 from app.controllers.deps import get_db
-from app.database.models import Event
-from app.dtos.schemas import EventIn, EventOut, PackageListResponse, PackageItem
-from app.services import events_service, packages_service
-from app.dtos.schemas import TicketIn, TicketOut
-from app.services import tickets_service
+from app.dtos.events_schemas import (
+    EventIn,
+    EventOut,
+    EventItem,
+    EventListResponse,
+    Link,
+)
+from app.dtos.packages_schemas import PackageListResponse, PackageItem
+from app.dtos.tickets_schemas import TicketListResponse, TicketIn, TicketOut
+from app.services import events_service, packages_service, tickets_service
 
 router = APIRouter(prefix="/api/event-manager/events", tags=["events"])
 
 
-@router.get("")
+def build_event_links(event_id: int) -> Dict[str, Link]:
+    return {
+        "self": Link(href=f"/api/event-manager/events/{event_id}", type="GET"),
+        "parent": Link(href="/api/event-manager/events", type="GET"),
+    }
+
+@router.get("", response_model=EventListResponse)
 def list_events(
+    request: Request,
     page: int = Query(1, ge=1),
     items_per_page: int = Query(10, ge=1, le=100),
     name: Optional[str] = Query(None),
@@ -25,12 +39,30 @@ def list_events(
         location=location,
     )
 
-    offset = (page - 1) * items_per_page
-    has_next = offset + items_per_page < total
+    items: List[EventItem] = []
+    for row in rows:
+        event_id = row["id"]
+        item_links = build_event_links(event_id)
 
+        items.append(
+            EventItem(
+                id=row["id"],
+                id_owner=row["id_owner"],
+                name=row["name"],
+                location=row["location"],
+                description=row.get("description"),
+                total_seats=row.get("total_seats"),
+                available_seats=row.get("available_seats"),
+                links=item_links,
+            )
+        )
+
+    base = "/api/event-manager/events"
     q_name = "" if not name else f"&name={name}"
     q_loc = "" if not location else f"&location={location}"
-    base = "/api/event-manager/events"
+
+    offset = (page - 1) * items_per_page
+    has_next = offset + items_per_page < total
 
     self_href = f"{base}?page={page}&items_per_page={items_per_page}{q_name}{q_loc}"
     next_href = (
@@ -44,18 +76,22 @@ def list_events(
         else None
     )
 
-    return {
-        "page": page,
-        "items_per_page": items_per_page,
-        "total_items": total,
-        "events": rows,
-        "_links": {
-            "self": {"href": self_href},
-            "next": {"href": next_href} if next_href else None,
-            "prev": {"href": prev_href} if prev_href else None,
-            "parent": {"href": "/api/event-manager"},
-        },
+    collection_links: Dict[str, Link] = {
+        "self": Link(href=self_href, type="GET"),
+        "parent": Link(href="/api/event-manager", type="GET"),
     }
+    if next_href:
+        collection_links["next"] = Link(href=next_href, type="GET")
+    if prev_href:
+        collection_links["prev"] = Link(href=prev_href, type="GET")
+
+    return EventListResponse(
+        items=items,
+        page=page,
+        items_per_page=items_per_page,
+        total=total,
+        links=collection_links,
+    )
 
 
 @router.get("/{event_id}", response_model=EventOut)
@@ -64,14 +100,18 @@ def get_event(event_id: int, db=Depends(get_db)):
     if not res:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    res.setdefault("_links", {})
-    res["_links"].update(
-        {
-            "self": {"href": f"/api/event-manager/events/{event_id}"},
-            "parent": {"href": "/api/event-manager/events"},
-        }
+    links = build_event_links(event_id)
+
+    return EventOut(
+        id=res["id"],
+        id_owner=res["id_owner"],
+        name=res["name"],
+        location=res["location"],
+        description=res.get("description"),
+        total_seats=res.get("total_seats"),
+        available_seats=res.get("available_seats"),
+        links=links,
     )
-    return res
 
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=EventOut)
@@ -79,18 +119,18 @@ def create_event(data: EventIn, db=Depends(get_db)):
     created = events_service.create_event(data)
     event_id = created.get("id")
 
-    created.setdefault("_links", {})
-    created["_links"].update(
-        {
-            "self": {
-                "href": f"/api/event-manager/events/{event_id}"
-            }
-            if event_id is not None
-            else None,
-            "parent": {"href": "/api/event-manager/events"},
-        }
+    links = build_event_links(event_id)
+
+    return EventOut(
+        id=created["id"],
+        id_owner=created["id_owner"],
+        name=created["name"],
+        location=created["location"],
+        description=created.get("description"),
+        total_seats=created.get("total_seats"),
+        available_seats=created.get("available_seats"),
+        links=links,
     )
-    return created
 
 
 @router.put("/{event_id}", response_model=EventOut)
@@ -105,14 +145,18 @@ def update_event(event_id: int, data: EventIn, db=Depends(get_db)):
             detail="Edit locked: tickets already sold",
         )
 
-    res.setdefault("_links", {})
-    res["_links"].update(
-        {
-            "self": {"href": f"/api/event-manager/events/{event_id}"},
-            "parent": {"href": "/api/event-manager/events"},
-        }
+    links = build_event_links(event_id)
+
+    return EventOut(
+        id=res["id"],
+        id_owner=res["id_owner"],
+        name=res["name"],
+        location=res["location"],
+        description=res.get("description"),
+        total_seats=res.get("total_seats"),
+        available_seats=res.get("available_seats"),
+        links=links,
     )
-    return res
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -134,10 +178,12 @@ def list_event_packets_for_event(
     event_id: int = Path(..., ge=1),
     db=Depends(get_db),
 ):
-    try:
-        events_service.get_event(event_id)
-    except Event.DoesNotExist:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Event not found")
+    e = events_service.get_event(event_id)
+    if not e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Event not found",
+        )
 
     packages = packages_service.list_packages_for_event(event_id)
 
@@ -153,16 +199,19 @@ def list_event_packets_for_event(
                 description=p.description,
                 total_seats=p.total_seats,
                 available_tickets=available,
-                _links={
-                    "self": {
-                        "href": f"/api/event-manager/event-packets/{p.id}"
-                    },
-                    "parent": {
-                        "href": "/api/event-manager/event-packets"
-                    },
-                    "events": {
-                        "href": f"/api/event-manager/event-packets/{p.id}/events"
-                    },
+                links={
+                "self": Link(
+                    href=f"/api/event-manager/event-packets/{p.id}",
+                    type="GET",
+                ),
+                "parent": Link(
+                    href="/api/event-manager/event-packets",
+                    type="GET",
+                ),
+                "events": Link(
+                    href=f"/api/event-manager/event-packets/{p.id}/events",
+                    type="GET",
+                ),
                 },
             )
         )
@@ -172,30 +221,62 @@ def list_event_packets_for_event(
         page=1,
         items_per_page=len(items),
         total_items=len(items),
-        _links={
-            "self": {
-                "href": f"/api/event-manager/events/{event_id}/event-packets"
-            },
-            "parent": {
-                "href": f"/api/event-manager/events/{event_id}"
-            },
+        links={
+            "self": Link(href=f"/api/event-manager/events/{event_id}/event-packets"),
+            "parent": Link(href=f"/api/event-manager/events/{event_id}"),
         },
     )
 
-
-@router.get("/{event_id}/tickets")
+@router.get("/{event_id}/tickets", response_model=TicketListResponse)
 def list_event_tickets(
     event_id: int = Path(..., ge=1),
-    page: int = Query(0, ge=0),
+    page: int = Query(1, ge=1),
     items_per_page: int = Query(10, ge=1, le=100),
     db=Depends(get_db),
 ):
-    return tickets_service.list_tickets(
+    e = events_service.get_event(event_id)
+    if not e:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    items, total = tickets_service.list_tickets(
         page=page,
         per_page=items_per_page,
         event_id=event_id,
+        package_id=None,
     )
 
+    base = f"/api/event-manager/events/{event_id}/tickets"
+    offset = (page - 1) * items_per_page
+    has_next = offset + items_per_page < total
+
+    self_href = f"{base}?page={page}&items_per_page={items_per_page}"
+    next_href = (
+        f"{base}?page={page + 1}&items_per_page={items_per_page}"
+        if has_next
+        else None
+    )
+    prev_href = (
+        f"{base}?page={page - 1}&items_per_page={items_per_page}"
+        if page > 1
+        else None
+    )
+
+    collection_links: Dict[str, Link] = {
+        "self": Link(href=self_href, type="GET"),
+        "parent": Link(href=f"/api/event-manager/events/{event_id}", type="GET"),
+    }
+    if next_href:
+        collection_links["next"] = Link(href=next_href, type="GET")
+    if prev_href:
+        collection_links["prev"] = Link(href=prev_href, type="GET")
+
+    return TicketListResponse(
+        items=items,
+        page=page,
+        items_per_page=items_per_page,
+        total_items=total,
+        links=collection_links,
+    )
 
 @router.post(
     "/{event_id}/tickets",
@@ -203,18 +284,23 @@ def list_event_tickets(
     response_model=TicketOut,
 )
 def create_event_ticket(
-    event_id: int,
-    data: TicketIn,
+    event_id: int = Path(..., ge=1),
     db=Depends(get_db),
 ):
-    payload = data.model_copy(update={
-        "event_id": event_id,
-        "package_id": None,
-    })
-
-    code, res = tickets_service.create_ticket(payload)
-    if code == 404:
+    e = events_service.get_event(event_id)
+    if not e:
         raise HTTPException(status_code=404, detail="Event not found")
-    if code == 409:
-        raise HTTPException(status_code=409, detail="No more seats available for event")
-    return res
+
+    data = TicketIn(package_id=None, event_id=event_id)
+
+    status_code_result, result = tickets_service.create_ticket(data)
+
+    if status_code_result == 404:
+        raise HTTPException(status_code=404, detail=result["detail"])
+    if status_code_result == 409:
+        raise HTTPException(status_code=409, detail=result["detail"])
+
+    return result
+
+
+

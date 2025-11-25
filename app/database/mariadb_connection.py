@@ -1,4 +1,4 @@
-# app/database/connection.py
+# app/database/mariadb_connection.py
 import pymysql
 pymysql.install_as_MySQLdb()
 

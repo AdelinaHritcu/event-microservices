@@ -1,4 +1,4 @@
-from app.database.connection import db
+from app.database.mariadb_connection import db
 from app.database.models import Event, Package, EventPackage, Ticket
 
 

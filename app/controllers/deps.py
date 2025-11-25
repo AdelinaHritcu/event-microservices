@@ -1,7 +1,7 @@
 # app/controllers/deps.py
 from fastapi import Depends
 from contextlib import contextmanager
-from app.database.connection import db
+from app.database.mariadb_connection import db
 
 @contextmanager
 def db_ctx():
