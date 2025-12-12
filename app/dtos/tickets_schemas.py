@@ -20,8 +20,8 @@ class TicketIn(BaseModel):
     @field_validator("event_id")
     def validate_relation(cls, event_id, info):
         package_id = info.data.get("package_id")
-        if event_id is None and package_id is None:
-            raise ValueError("A ticket must be linked to either a package or an event.")
+        if (event_id is None and package_id is None) or (event_id is not None and package_id is not None):
+            raise ValueError("A ticket must be linked to exactly one of package_id or event_id.")
         return event_id
 
 
@@ -54,6 +54,3 @@ class TicketListResponse(BaseModel):
     total_items: Optional[int] = Field(default=None, ge=0)
 
     links: Optional[Dict[str, Link]] = Field(default=None, serialization_alias="_links")
-
-class AddTicketToClient(BaseModel):
-    code: str

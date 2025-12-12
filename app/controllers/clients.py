@@ -1,89 +1,131 @@
-from fastapi import APIRouter, HTTPException
 from typing import Dict
+
+from fastapi import APIRouter, HTTPException
 
 from app.services.clients_service import ClientsService
 from app.dtos.clients_schemas import (
     ClientIn,
     ClientOut,
     ClientTicketDetailsResponse,
-    Link
+    Link,
 )
-from app.dtos.tickets_schemas import AddTicketToClient
+from app.dtos.clients_schemas import AddTicketToClient
 
 
 router = APIRouter(
     prefix="/api/event-manager/clients",
-    tags=["Clients"],
+    tags=["clients"],
 )
 
 BASE = "/api/event-manager/clients"
 
 
-def _links(email: str) -> Dict[str, Link]:
+def _links(client_id: str) -> Dict[str, Link]:
     return {
-        "self": Link(href=f"{BASE}/{email}", type="GET"),
+        "self": Link(href=f"{BASE}/{client_id}", type="GET"),
         "parent": Link(href=BASE, type="GET"),
-        "tickets": Link(href=f"{BASE}/{email}/tickets", type="GET"),
+        "tickets": Link(href=f"{BASE}/{client_id}/tickets", type="GET"),
     }
 
 
 @router.post("/", response_model=ClientOut, status_code=201)
 def create_client(payload: ClientIn):
-    created = ClientsService.create_client(payload)
+    try:
+        created = ClientsService.create_client(payload)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
     if not created:
         raise HTTPException(status_code=409, detail="Client already exists")
-    email = created["email"]
-    return ClientOut(**created, links=_links(email))
+
+    client_id = str(created.get("_id"))
+    created["_id"] = client_id
+    return ClientOut(**created, links=_links(client_id))
 
 
-@router.put("/{email}", response_model=ClientOut)
-def update_client(email: str, payload: ClientIn):
-    updated = ClientsService.update_client(email, payload)
+@router.put("/{client_id}", response_model=ClientOut)
+def update_client(client_id: str, payload: ClientIn):
+    try:
+        updated = ClientsService.update_client(client_id, payload)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
     if not updated:
         raise HTTPException(status_code=404, detail="Client not found")
-    return ClientOut(**updated, links=_links(email))
+
+    cid = str(updated.get("_id"))
+    updated["_id"] = cid
+    return ClientOut(**updated, links=_links(cid))
 
 
-@router.get("/{email}", response_model=ClientOut)
-def get_client(email: str):
-    client = ClientsService.get_client(email)
+@router.get("/{client_id}", response_model=ClientOut)
+def get_client(client_id: str):
+    try:
+        client = ClientsService.get_client(client_id)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
-    return ClientOut(**client, links=_links(email))
+
+    cid = str(client.get("_id"))
+    client["_id"] = cid
+    return ClientOut(**client, links=_links(cid))
 
 
-@router.post("/{email}/tickets", response_model=ClientOut)
-def add_ticket_to_client(email: str, ticket: AddTicketToClient):
-    updated = ClientsService.add_ticket_to_client(email, ticket.model_dump())
-    if not updated:
-        raise HTTPException(status_code=404, detail="Client not found")
-    return ClientOut(**updated, links=_links(email))
-
-
-@router.get("/{email}/tickets/{ticket_code}", response_model=ClientTicketDetailsResponse)
-def validate_ticket(email: str, ticket_code: str):
-    ticket_info, error = ClientsService.validate_client_ticket(email, ticket_code)
-    if ticket_info is None:
-        return ClientTicketDetailsResponse(
-            client_email=email,
-            ticket_code=ticket_code,
-            is_valid=False,
-            event=None,
-            package=None
+@router.post("/{client_id}/tickets", response_model=ClientOut)
+def add_ticket_to_client(client_id: str, ticket: AddTicketToClient):
+    try:
+        updated_client, code, message = ClientsService.add_ticket_to_client(
+            client_id,
+            ticket.model_dump(),
         )
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    if code == 400:
+        raise HTTPException(status_code=400, detail=message or "Invalid request")
+    if code == 404:
+        raise HTTPException(status_code=404, detail=message or "Client or resource not found")
+    if code == 409:
+        raise HTTPException(status_code=409, detail=message or "Ticket already exists")
+    if code == 502:
+        raise HTTPException(status_code=502, detail=message or "Upstream data service error")
+    if not updated_client:
+        raise HTTPException(status_code=500, detail="Unknown ticket creation error")
+
+    cid = str(updated_client.get("_id"))
+    updated_client["_id"] = cid
+    return ClientOut(**updated_client, links=_links(cid))
+
+
+@router.get("/{client_id}/tickets/{ticket_code}", response_model=ClientTicketDetailsResponse)
+def validate_ticket(client_id: str, ticket_code: str):
+    try:
+        ticket_info = ClientsService.validate_client_ticket(client_id, ticket_code)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
     return ticket_info
 
 
 @router.get("/", response_model=dict)
 def list_clients(page: int = 1, items_per_page: int = 10):
-    clients, total = ClientsService.list_clients(page, items_per_page)
+    try:
+        clients, total = ClientsService.list_clients(page, items_per_page)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     items = []
     for c in clients:
+        client_id = str(c.get("_id"))
+        c["_id"] = client_id
+        tickets = c.get("tickets") or []
+        c["tickets"] = tickets
         items.append(
             ClientOut(
                 **c,
-                links=_links(c["email"])
+                links=_links(client_id),
             )
         )
 
@@ -94,21 +136,26 @@ def list_clients(page: int = 1, items_per_page: int = 10):
         "total_items": total,
         "links": {
             "self": Link(href=f"{BASE}?page={page}&items_per_page={items_per_page}", type="GET"),
-            "parent": Link(href=BASE, type="GET")
-        }
+            "parent": Link(href=BASE, type="GET"),
+        },
     }
 
-@router.get("/{email}/tickets", response_model=dict)
-def list_client_tickets(email: str):
-    client = ClientsService.get_client(email)
+
+@router.get("/{client_id}/tickets", response_model=dict)
+def list_client_tickets(client_id: str):
+    try:
+        client = ClientsService.get_client(client_id)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Internal server error")
+
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
 
     return {
-        "email": email,
+        "email": client.get("email"),
         "tickets": client.get("tickets", []),
         "links": {
-            "self": Link(href=f"{BASE}/{email}/tickets", type="GET"),
-            "parent": Link(href=f"{BASE}/{email}", type="GET")
-        }
+            "self": Link(href=f"{BASE}/{client_id}/tickets", type="GET"),
+            "parent": Link(href=f"{BASE}/{client_id}", type="GET"),
+        },
     }

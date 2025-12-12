@@ -12,7 +12,8 @@ from app.dtos.events_schemas import (
 )
 from app.dtos.packages_schemas import PackageListResponse, PackageItem
 from app.dtos.tickets_schemas import TicketListResponse, TicketIn, TicketOut
-from app.services import events_service, packages_service, tickets_service
+from app.services import events_service, packages_service
+from app.services.tickets_service import TicketsService
 
 router = APIRouter(prefix="/api/event-manager/events", tags=["events"])
 
@@ -238,7 +239,7 @@ def list_event_tickets(
     if not e:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    items, total = tickets_service.list_tickets(
+    items, total = TicketsService.list_tickets(
         page=page,
         per_page=items_per_page,
         event_id=event_id,
@@ -293,7 +294,7 @@ def create_event_ticket(
 
     data = TicketIn(package_id=None, event_id=event_id)
 
-    status_code_result, result = tickets_service.create_ticket(data)
+    status_code_result, result = TicketsService.create_ticket(data)
 
     if status_code_result == 404:
         raise HTTPException(status_code=404, detail=result["detail"])

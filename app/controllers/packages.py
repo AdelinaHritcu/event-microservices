@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
 from fastapi.responses import Response
 
 from app.controllers.deps import get_db
-from app.services import packages_service, tickets_service
+from app.services import packages_service
 from app.database.models import Package, Event
 from app.dtos.packages_schemas import (
     PackageIn,
@@ -14,7 +14,7 @@ from app.dtos.packages_schemas import (
     Link,
 )
 from app.dtos.tickets_schemas import TicketIn
-
+from app.services.tickets_service import TicketsService
 
 router = APIRouter(
     prefix="/api/event-manager/event-packets",
@@ -216,7 +216,7 @@ def list_package_tickets(
     items_per_page: int = Query(10, ge=1, le=100),
     db=Depends(get_db),
 ):
-    return tickets_service.list_tickets(
+    return TicketsService.list_tickets(
         page=page,
         per_page=items_per_page,
         package_id=package_id,
@@ -234,5 +234,5 @@ def create_package_ticket(
         "event_id": None,
     })
 
-    code, res = tickets_service.create_ticket(payload)
+    code, res = TicketsService.create_ticket(payload)
     return res

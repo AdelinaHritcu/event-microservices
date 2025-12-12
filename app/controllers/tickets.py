@@ -10,7 +10,7 @@ from app.dtos.tickets_schemas import (
     TicketListResponse,
     Link,
 )
-from app.services import tickets_service
+from app.services.tickets_service import TicketsService
 
 router = APIRouter(prefix="/api/event-manager/tickets", tags=["tickets"])
 
@@ -23,7 +23,7 @@ def list_tickets(
     package_id: Optional[int] = Query(None),
     db=Depends(get_db),
 ):
-    items, total = tickets_service.list_tickets(
+    items, total = TicketsService.list_tickets(
         page=page,
         per_page=items_per_page,
         event_id=event_id,
@@ -49,10 +49,34 @@ def list_tickets(
         links=links,
     )
 
+@router.put("/{code}", status_code=status.HTTP_204_NO_CONTENT)
+def upsert_ticket(code: str, payload: TicketIn, db=Depends(get_db)):
+    if (payload.event_id is None and payload.package_id is None) or (
+        payload.event_id is not None and payload.package_id is not None
+    ):
+        raise HTTPException(status_code=400, detail="Provide exactly one between event_id and package_id")
+
+    ticket, conflict = TicketsService.create_ticket_if_not_exists(
+        code=code,
+        event_id=payload.event_id,
+        package_id=payload.package_id,
+    )
+
+    if conflict:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "ticket_code": code,
+                "event_id": payload.event_id,
+                "package_id": payload.package_id,
+            },
+        )
+
+    return
 
 @router.get("/{code}", response_model=TicketOut)
 def get_ticket(code: str, db=Depends(get_db)):
-    res = tickets_service.get_ticket(code)
+    res = TicketsService.get_ticket(code)
     if res is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -63,7 +87,7 @@ def get_ticket(code: str, db=Depends(get_db)):
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=TicketOut)
 def create_ticket(data: TicketIn, db=Depends(get_db)):
-    code, res = tickets_service.create_ticket(data)
+    code, res = TicketsService.create_ticket(data)
 
     if code == 404:
         detail = res.get("detail", "Related resource not found.")
@@ -78,7 +102,7 @@ def create_ticket(data: TicketIn, db=Depends(get_db)):
 
 @router.delete("/{code}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_ticket(code: str, db=Depends(get_db)):
-    code_, payload = tickets_service.delete_ticket(code)
+    code_, payload = TicketsService.delete_ticket(code)
 
     if code_ == 404:
         detail = payload.get("detail", "Ticket not found") if payload else "Ticket not found"

@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 from typing import Optional, List, Dict
-from pydantic import BaseModel, Field, EmailStr
-
-from app.dtos.events_schemas import EventOut
-from app.dtos.packages_schemas import PackageOut
+from pydantic import BaseModel, Field, EmailStr, field_validator
 
 
 class Link(BaseModel):
@@ -41,12 +38,12 @@ class ClientIn(ClientBase):
 
 
 class ClientOut(ClientBase):
-    links: Optional[Dict[str, Link]] = Field(
-        default=None,
-        serialization_alias="_links",
-    )
+    id: Optional[str] = Field(default=None, alias="_id", serialization_alias="id")
+    tickets: List[TicketInfo] = Field(default_factory=list)
+    links: Optional[Dict[str, Link]] = Field(default=None, serialization_alias="_links")
 
     class Config:
+        populate_by_name = True
         from_attributes = True
 
 
@@ -59,21 +56,27 @@ class ClientListResponse(BaseModel):
     page: Optional[int] = None
     items_per_page: Optional[int] = None
     total_items: Optional[int] = None
-
-    links: Optional[Dict[str, Link]] = Field(
-        default=None,
-        serialization_alias="_links",
-    )
+    links: Optional[Dict[str, Link]] = Field(default=None, serialization_alias="_links")
 
 
 class ClientTicketDetailsResponse(BaseModel):
-    client_email: str
+    client_id: str
+    client_email: Optional[EmailStr] = None
     ticket_code: str
     is_valid: bool
-    event: Optional[EventOut] = None
-    package: Optional[PackageOut] = None
+    event: Optional[dict] = None
+    package: Optional[dict] = None
+    links: Optional[Dict[str, Link]] = Field(default=None, serialization_alias="_links")
 
-    links: Optional[Dict[str, Link]] = Field(
-        default=None,
-        serialization_alias="_links",
-    )
+class AddTicketToClient(BaseModel):
+    event_id: Optional[int] = Field(default=None, ge=1)
+    package_id: Optional[int] = Field(default=None, ge=1)
+
+    @field_validator("event_id")
+    def validate_relation(cls, event_id, info):
+        package_id = info.data.get("package_id")
+        if (event_id is None and package_id is None) or (
+            event_id is not None and package_id is not None
+        ):
+            raise ValueError("Provide exactly one between event_id and package_id")
+        return event_id

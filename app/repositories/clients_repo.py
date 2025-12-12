@@ -1,12 +1,12 @@
+# app/repositories/clients_repo.py
+
 from app.database.mongo_connection import db, clients_collection
-from app.dtos.clients_schemas import ClientIn
-from bson import ObjectId
 
 
 class ClientsRepository:
 
     @staticmethod
-    def create_client(data: ClientIn):
+    def create_client(data):
         client_dict = data.model_dump(by_alias=True)
         result = db.clients.insert_one(client_dict)
         return db.clients.find_one({"_id": result.inserted_id})
@@ -16,17 +16,27 @@ class ClientsRepository:
         return db.clients.find_one({"email": email})
 
     @staticmethod
-    def update_client(email: str, data: dict):
-        db.clients.update_one({"email": email}, {"$set": data})
-        return db.clients.find_one({"email": email})
+    def get_client_by_id(client_id: str):
+        from bson import ObjectId
+
+        return db.clients.find_one({"_id": ObjectId(client_id)})
 
     @staticmethod
-    def add_ticket(email: str, ticket: dict):
+    def update_client(client_id: str, data: dict):
+        from bson import ObjectId
+
+        db.clients.update_one({"_id": ObjectId(client_id)}, {"$set": data})
+        return db.clients.find_one({"_id": ObjectId(client_id)})
+
+    @staticmethod
+    def add_ticket(client_id: str, ticket: dict):
+        from bson import ObjectId
+
         db.clients.update_one(
-            {"email": email},
-            {"$push": {"tickets": ticket}}
+            {"_id": ObjectId(client_id)},
+            {"$push": {"tickets": ticket}},
         )
-        return db.clients.find_one({"email": email})
+        return db.clients.find_one({"_id": ObjectId(client_id)})
 
     @staticmethod
     def count_clients():
@@ -35,8 +45,7 @@ class ClientsRepository:
     @staticmethod
     def list_clients(page: int, per_page: int):
         skip = (page - 1) * per_page
-        cursor = clients_collection.find().skip(skip).limit(per_page)
-
-        clients = list(cursor)
-        total = clients_collection.count_documents({})
-        return clients, total
+        cursor = db.clients.find().skip(skip).limit(per_page)
+        items = list(cursor)
+        total = db.clients.count_documents({})
+        return items, total

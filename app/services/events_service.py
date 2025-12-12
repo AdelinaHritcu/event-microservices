@@ -66,7 +66,6 @@ def get_event(event_id: int):
 
 
 def create_event(data):
-    # Pydantic v2 -> model_dump(), daca data e model Pydantic
     payload = data.model_dump() if hasattr(data, "model_dump") else data.dict()
     e = EventsRepository.create_event(payload)
     return get_event(e.id)
