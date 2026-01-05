@@ -1,7 +1,10 @@
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from app.controllers import events, packages, tickets
+from fastapi import FastAPI
+
+from app.controllers import events as events_controller
+from app.controllers import packages as packages_controller
+from app.controllers import tickets as tickets_controller
 from app.database.init_mariadb import init_db
 
 
@@ -13,22 +16,26 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Event Manager API",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-app.include_router(events.router)
-app.include_router(packages.router)
-app.include_router(tickets.router)
+app.include_router(events_controller.router)
+app.include_router(packages_controller.router)
+app.include_router(tickets_controller.router)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.get("/")
 def root():
     return {
         "_links": {
-            "self": {"href": "/"},
+            "self": {"href": "/api/event-manager/"},
             "events": {"href": "/api/event-manager/events"},
             "packages": {"href": "/api/event-manager/event-packets"},
             "tickets": {"href": "/api/event-manager/tickets"},
-            "clients": {"href": "/api/event-manager/clients"},
         }
     }

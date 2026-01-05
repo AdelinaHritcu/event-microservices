@@ -1,5 +1,3 @@
-# app/repositories/clients_repo.py
-
 from app.database.mongo_connection import db
 
 

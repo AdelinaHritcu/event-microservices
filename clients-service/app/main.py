@@ -1,12 +1,11 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
 
-from . import clients
+from fastapi import FastAPI
+from app.controllers.clients import router as clients_router
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Optional: poti valida ca ai config corect / poti face un ping la mongo daca vrei
     yield
 
 
@@ -14,9 +13,7 @@ app = FastAPI(
     title="Clients Service API",
     lifespan=lifespan,
 )
-
-app.include_router(clients.router)
-
+app.include_router(clients_router, prefix="/clients", tags=["clients"])
 
 @app.get("/health")
 def health():

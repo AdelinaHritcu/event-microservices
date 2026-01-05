@@ -29,6 +29,7 @@ services:
       start_period: 20s
 
   mongo:
+    user: "0:0"
     image: mongo:8
     container_name: pos-mongo
     restart: unless-stopped
@@ -54,13 +55,18 @@ services:
       - mongo_db_owner_pass
       - mongo_app_pass
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        [
+          "CMD-SHELL",
+          "mongosh --quiet -u \"$${MONGO_INITDB_ROOT_USERNAME}\" -p \"$$(cat /run/secrets/mongo_admin_pass)\" --authenticationDatabase admin --eval \"db.adminCommand('ping')\""
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
       start_period: 20s
 
   events-manager-service:
+    user: "0:0"
     build:
       context: ./events-manager-service
       dockerfile: Dockerfile
@@ -82,7 +88,7 @@ services:
     secrets:
       - db_user_pass
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs').read()\""]
+      test: [ "CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health').read()\"" ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -102,7 +108,7 @@ services:
       MONGO_APP_PASS_FILE: /run/secrets/mongo_app_pass
       MONGO_CLIENTS_COLLECTION: ${MONGO_CLIENTS_COLLECTION}
 
-      DATA_SERVICE_URL: http://events-manager-service:8000
+      DATA_SERVICE_URL: http://pos-events-manager:8000
     depends_on:
       mongo:
         condition: service_healthy

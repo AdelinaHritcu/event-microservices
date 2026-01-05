@@ -3,7 +3,7 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.12 (activitate-laborator-proiect-2025-2026-AdelinaHritcu)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12 (activitate-laborator-proiect-2025-2026-AdelinaHritcu)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.12.3 WSL (Ubuntu): (/home/ade/.virtualenvs/activitate-laborator-proiect-2025-2026-AdelinaHritcu/bin/python) (2)" project-jdk-type="Python SDK" />
   <component name="PythonCompatibilityInspectionAdvertiser">
     <option name="version" value="3" />
   </component>
