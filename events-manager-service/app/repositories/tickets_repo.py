@@ -1,4 +1,4 @@
-from typing import Tuple, List, Optional
+from typing import Optional
 from app.database.models import Ticket
 
 

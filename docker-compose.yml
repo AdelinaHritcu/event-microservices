@@ -4,57 +4,135 @@ services:
     container_name: pos-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASS}
       MYSQL_DATABASE: ${DB_NAME}
       MYSQL_USER: ${DB_USER}
-      MYSQL_PASSWORD: ${DB_PASS}
-    ports:
-      - "${DB_PORT}:3306"
+      MYSQL_PASSWORD_FILE: /run/secrets/db_user_pass
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/db_root_pass
+
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_ADMIN_USER: ${DB_ADMIN_USER}
     volumes:
       - mariadb-data:/var/lib/mysql
+      - ./mariadb-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - pos-network
+    secrets:
+      - db_root_pass
+      - db_user_pass
+      - db_admin_pass
+    healthcheck:
+      test: [ "CMD", "mariadb-admin", "ping", "-h", "127.0.0.1", "-u", "${DB_USER}", "--password=$$(cat /run/secrets/db_user_pass)" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
   mongo:
     image: mongo:8
     container_name: pos-mongo
     restart: unless-stopped
-    command: ["--auth"]
+    command: ["mongod", "--auth"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ADMIN_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ADMIN_PASS}
+      MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongo_admin_pass
+
       MONGO_DB_NAME: ${MONGO_DB_NAME}
+
       MONGO_DB_OWNER_USER: ${MONGO_DB_OWNER_USER}
-      MONGO_DB_OWNER_PASS: ${MONGO_DB_OWNER_PASS}
+      MONGO_DB_OWNER_PASS_FILE: /run/secrets/mongo_db_owner_pass
+
       MONGO_APP_USER: ${MONGO_APP_USER}
-      MONGO_APP_PASS: ${MONGO_APP_PASS}
-    ports:
-      - "${MONGO_PORT}:27017"
+      MONGO_APP_PASS_FILE: /run/secrets/mongo_app_pass
     volumes:
       - mongo-data:/data/db
-      - ./mongo-init.sh:/docker-entrypoint-initdb.d/mongo-init.sh:ro
+      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - pos-network
+    secrets:
+      - mongo_admin_pass
+      - mongo_db_owner_pass
+      - mongo_app_pass
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
-  api:
+  events-manager-service:
     build:
-      context: .
-      dockerfile: ./app/Dockerfile
-    container_name: pos-api
+      context: ./events-manager-service
+      dockerfile: Dockerfile
+    container_name: pos-events-manager
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      DB_HOST: mariadb
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS_FILE: /run/secrets/db_user_pass
     depends_on:
-      - mariadb
-      - mongo
+      mariadb:
+        condition: service_healthy
     ports:
       - "8000:8000"
+    networks:
+      - pos-network
+    secrets:
+      - db_user_pass
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/docs').read()\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
 
-  adminer:
-    image: adminer
-    container_name: pos-adminer
+  clients-service:
+    build:
+      context: ./clients-service
+      dockerfile: Dockerfile
+    container_name: pos-clients
     restart: unless-stopped
-    ports:
-      - "8080:8080"
+    environment:
+      MONGO_HOST: mongo
+      MONGO_PORT: 27017
+      MONGO_DB_NAME: ${MONGO_DB_NAME}
+      MONGO_APP_USER: ${MONGO_APP_USER}
+      MONGO_APP_PASS_FILE: /run/secrets/mongo_app_pass
+      MONGO_CLIENTS_COLLECTION: ${MONGO_CLIENTS_COLLECTION}
+
+      DATA_SERVICE_URL: http://events-manager-service:8000
     depends_on:
-      - mariadb
+      mongo:
+        condition: service_healthy
+      events-manager-service:
+        condition: service_healthy
+    ports:
+      - "8001:8000"
+    networks:
+      - pos-network
+    secrets:
+      - mongo_app_pass
 
 volumes:
   mariadb-data:
   mongo-data:
+
+networks:
+  pos-network:
+    driver: bridge
+
+secrets:
+  db_root_pass:
+    file: /home/ade/pos-secrets/db_root_pass.txt
+  db_user_pass:
+    file: /home/ade/pos-secrets/db_user_pass.txt
+  db_admin_pass:
+    file: /home/ade/pos-secrets/db_admin_pass.txt
+  mongo_admin_pass:
+    file: /home/ade/pos-secrets/mongo_admin_pass.txt
+  mongo_db_owner_pass:
+    file: /home/ade/pos-secrets/mongo_db_owner_pass.txt
+  mongo_app_pass:
+    file: /home/ade/pos-secrets/mongo_app_pass.txt

@@ -1,6 +1,6 @@
 # app/repositories/clients_repo.py
 
-from app.database.mongo_connection import db, clients_collection
+from app.database.mongo_connection import db
 
 
 class ClientsRepository:
