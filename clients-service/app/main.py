@@ -13,7 +13,7 @@ app = FastAPI(
     title="Clients Service API",
     lifespan=lifespan,
 )
-app.include_router(clients_router, prefix="/clients", tags=["clients"])
+app.include_router(clients_router, tags=["clients"])
 
 @app.get("/health")
 def health():

@@ -1,6 +1,6 @@
 from typing import Dict
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.services.clients_service import ClientsService
 from app.dtos.clients_schemas import (
@@ -10,14 +10,16 @@ from app.dtos.clients_schemas import (
     Link,
 )
 from app.dtos.clients_schemas import AddTicketToClient
+from app.security.auth import require_roles, Principal
 
 
 router = APIRouter(
-    prefix="/api/event-manager/clients",
+    prefix="/api/clients",
     tags=["clients"],
+    dependencies=[Depends(require_roles("admin", "owner-event"))],
 )
 
-BASE = "/api/event-manager/clients"
+BASE = "/api/clients"
 
 
 def _links(client_id: str) -> Dict[str, Link]:

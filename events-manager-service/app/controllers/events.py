@@ -15,8 +15,13 @@ from app.dtos.tickets_schemas import TicketListResponse, TicketIn, TicketOut
 from app.services import events_service, packages_service
 from app.services.tickets_service import TicketsService
 
-router = APIRouter(prefix="/api/event-manager/events", tags=["events"])
+from app.security.auth import require_roles
 
+router = APIRouter(
+    prefix="/api/event-manager/events",
+    tags=["events"],
+    dependencies=[Depends(require_roles("admin", "owner-event"))],
+)
 
 def build_event_links(event_id: int) -> Dict[str, Link]:
     return {

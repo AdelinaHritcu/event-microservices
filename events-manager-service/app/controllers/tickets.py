@@ -11,9 +11,13 @@ from app.dtos.tickets_schemas import (
     Link,
 )
 from app.services.tickets_service import TicketsService
+from app.security.auth import require_roles
 
-router = APIRouter(prefix="/api/event-manager/tickets", tags=["tickets"])
-
+router = APIRouter(
+    prefix="/api/event-manager/tickets",
+    tags=["tickets"],
+    dependencies=[Depends(require_roles("admin", "owner-event"))],
+)
 
 @router.get("", response_model=TicketListResponse)
 def list_tickets(

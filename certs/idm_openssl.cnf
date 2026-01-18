@@ -1,0 +1,22 @@
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+req_extensions = req_ext
+distinguished_name = dn
+
+[dn]
+C = RO
+ST = Iasi
+L = Iasi
+O = POS
+OU = IDM
+CN = pos-idm-service
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = pos-idm-service
+DNS.2 = idm-service
+DNS.3 = localhost

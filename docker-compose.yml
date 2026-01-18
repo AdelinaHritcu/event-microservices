@@ -78,9 +78,14 @@ services:
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS_FILE: /run/secrets/db_user_pass
+      IDM_GRPC_HOST: pos-idm-service
+      IDM_GRPC_PORT: 50051
+      IDM_TLS_ROOT_CERT: "/certs/idm.crt"
     depends_on:
       mariadb:
         condition: service_healthy
+      idm-service:
+        condition: service_started
     ports:
       - "8000:8000"
     networks:
@@ -93,6 +98,8 @@ services:
       timeout: 5s
       retries: 10
       start_period: 20s
+    volumes:
+        - ./certs:/certs:ro
 
   clients-service:
     build:
@@ -107,6 +114,9 @@ services:
       MONGO_APP_USER: ${MONGO_APP_USER}
       MONGO_APP_PASS_FILE: /run/secrets/mongo_app_pass
       MONGO_CLIENTS_COLLECTION: ${MONGO_CLIENTS_COLLECTION}
+      IDM_GRPC_HOST: pos-idm-service
+      IDM_GRPC_PORT: 50051
+      IDM_TLS_ROOT_CERT: "/certs/idm.crt"
 
       DATA_SERVICE_URL: http://pos-events-manager:8000
     depends_on:
@@ -114,16 +124,42 @@ services:
         condition: service_healthy
       events-manager-service:
         condition: service_healthy
+      idm-service:
+        condition: service_started
     ports:
       - "8001:8000"
     networks:
       - pos-network
     secrets:
       - mongo_app_pass
+    volumes:
+      - ./certs:/certs:ro
+
+  idm-service:
+    build:
+      context: ./idm-service
+      dockerfile: Dockerfile
+    container_name: pos-idm-service
+    restart: unless-stopped
+    environment:
+      IDM_GRPC_PORT: "50051"
+      IDM_SQLITE_PATH: /data/idm.db
+      IDM_TOKEN_TTL_SECONDS: "3600"
+      IDM_JWT_SECRET: ${IDM_JWT_SECRET}
+      IDM_JWT_ISSUER: ${IDM_JWT_ISSUER}
+      IDM_JWT_TTL_SECONDS: "900"
+      IDM_TLS_CERT: "/certs/idm.crt"
+      IDM_TLS_KEY: "/certs/idm.key"
+    volumes:
+      - idm-sqlite-data:/data
+      - ./certs:/certs:ro
+    networks:
+      - pos-network
 
 volumes:
   mariadb-data:
   mongo-data:
+  idm-sqlite-data:
 
 networks:
   pos-network:

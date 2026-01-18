@@ -15,12 +15,13 @@ from app.dtos.packages_schemas import (
 )
 from app.dtos.tickets_schemas import TicketIn
 from app.services.tickets_service import TicketsService
+from app.security.auth import require_roles
 
 router = APIRouter(
-    prefix="/api/event-manager/event-packets",
-    tags=["event-packets"],
+    prefix="/api/event-manager/packages",
+    tags=["packages"],
+    dependencies=[Depends(require_roles("admin", "owner-event"))],
 )
-
 
 def build_package_links(package_id: int) -> Dict[str, Link]:
     base = "/api/event-manager/event-packets"
