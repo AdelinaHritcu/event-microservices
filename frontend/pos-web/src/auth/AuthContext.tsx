@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { clearToken, getToken, setToken } from "./session";
-import { login as loginApi, me as meApi } from "./authApi";
+import { login as loginApi } from "./authApi";
+import { parseJwt, isExpired } from "./jwt";
 
 type AuthState =
   | { status: "anonymous" }
@@ -24,15 +25,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setState({ status: "anonymous" });
       return;
     }
-    (async () => {
-      try {
-        const info = await meApi(t);
-        setState({ status: "authenticated", token: t, sub: info.sub, role: info.role });
-      } catch {
-        clearToken();
-        setState({ status: "anonymous" });
-      }
-    })();
+
+    try {
+      const payload = parseJwt(t);
+      if (isExpired(payload)) throw new Error("token expired");
+
+      const sub = String(payload.sub ?? "");
+      const role = String(payload.role ?? "");
+
+      if (!sub || !role) throw new Error("missing claims");
+
+      setState({ status: "authenticated", token: t, sub, role });
+    } catch {
+      clearToken();
+      setState({ status: "anonymous" });
+    }
   }, []);
 
   const value = useMemo<AuthCtx>(
@@ -40,10 +47,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       state,
       login: async (email, password) => {
         setState({ status: "loading" });
+
         const t = await loginApi(email, password);
         setToken(t);
-        const info = await meApi(t);
-        setState({ status: "authenticated", token: t, sub: info.sub, role: info.role });
+
+        const payload = parseJwt(t);
+        if (isExpired(payload)) throw new Error("token expired");
+
+        const sub = String(payload.sub ?? "");
+        const role = String(payload.role ?? "");
+        if (!sub || !role) throw new Error("missing claims");
+
+        setState({ status: "authenticated", token: t, sub, role });
       },
       logout: () => {
         clearToken();

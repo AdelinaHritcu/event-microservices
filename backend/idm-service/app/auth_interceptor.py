@@ -8,11 +8,13 @@ from app import token_blacklist
 
 Metadata = Iterable[Tuple[str, str]]
 
+
 def _get_auth_header(md: Metadata) -> Optional[str]:
     for k, v in md:
         if k.lower() == "authorization":
             return v
     return None
+
 
 def _extract_bearer_token(auth_header: str) -> Optional[str]:
     if not auth_header:
@@ -22,20 +24,24 @@ def _extract_bearer_token(auth_header: str) -> Optional[str]:
         return parts[1].strip()
     return None
 
+
 class AuthInterceptor(grpc.ServerInterceptor):
-    class AuthInterceptor(grpc.ServerInterceptor):
-        PUBLIC_METHODS = {
-            "/idm.IdmService/Login",
-            "/idm.IdmService/ValidateToken",
-            "/idm.IdmService/Register",
-        }
+    PUBLIC_METHODS = {
+        "/idm.IdmService/Login",
+        "/idm.IdmService/ValidateToken",
+        "/idm.IdmService/Register",
+    }
 
-        ROLE_RULES = {
-            "/idm.IdmService/Logout": {"admin", "owner-event", "client"},
-            "/idm.IdmService/CreateUser": {"admin"},
-        }
+    ROLE_RULES = {
+        "/idm.IdmService/Logout": {"admin", "owner-event", "client"},
+        "/idm.IdmService/CreateUser": {"admin"},
+    }
 
-    def intercept_service(self, continuation: Callable, handler_call_details: grpc.HandlerCallDetails):
+    def intercept_service(
+        self,
+        continuation: Callable,
+        handler_call_details: grpc.HandlerCallDetails,
+    ):
         method = handler_call_details.method
 
         handler = continuation(handler_call_details)
@@ -61,7 +67,7 @@ class AuthInterceptor(grpc.ServerInterceptor):
             jti = str(payload.get("jti", ""))
             role = str(payload.get("role", ""))
 
-            if token_blacklist.is_blacklisted(jti):
+            if jti and token_blacklist.is_blacklisted(jti):
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, "token revoked")
 
             allowed_roles = self.ROLE_RULES.get(method)
