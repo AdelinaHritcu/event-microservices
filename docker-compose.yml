@@ -14,7 +14,7 @@ services:
       DB_ADMIN_USER: ${DB_ADMIN_USER}
     volumes:
       - mariadb-data:/var/lib/mysql
-      - ./mariadb-init:/docker-entrypoint-initdb.d:ro
+      - ./backend/mariadb-init:/docker-entrypoint-initdb.d:ro
     networks:
       - pos-network
     secrets:
@@ -47,7 +47,7 @@ services:
       MONGO_APP_PASS_FILE: /run/secrets/mongo_app_pass
     volumes:
       - mongo-data:/data/db
-      - ./mongo-init:/docker-entrypoint-initdb.d:ro
+      - ./backend/mongo-init:/docker-entrypoint-initdb.d:ro
     networks:
       - pos-network
     secrets:
@@ -68,7 +68,7 @@ services:
   events-manager-service:
     user: "0:0"
     build:
-      context: ./events-manager-service
+      context: ./backend/events-manager-service
       dockerfile: Dockerfile
     container_name: pos-events-manager
     restart: unless-stopped
@@ -103,7 +103,7 @@ services:
 
   clients-service:
     build:
-      context: ./clients-service
+      context: ./backend/clients-service
       dockerfile: Dockerfile
     container_name: pos-clients
     restart: unless-stopped
@@ -137,7 +137,7 @@ services:
 
   idm-service:
     build:
-      context: ./idm-service
+      context: ./backend/idm-service
       dockerfile: Dockerfile
     container_name: pos-idm-service
     restart: unless-stopped
@@ -147,7 +147,7 @@ services:
       IDM_TOKEN_TTL_SECONDS: "3600"
       IDM_JWT_SECRET: ${IDM_JWT_SECRET}
       IDM_JWT_ISSUER: ${IDM_JWT_ISSUER}
-      IDM_JWT_TTL_SECONDS: "900"
+      IDM_JWT_TTL_SECONDS: "3600"
       IDM_TLS_CERT: "/certs/idm.crt"
       IDM_TLS_KEY: "/certs/idm.key"
     volumes:

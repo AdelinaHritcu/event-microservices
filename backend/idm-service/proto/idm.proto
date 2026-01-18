@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package idm;
+
+service IdmService {
+  rpc Login(LoginRequest) returns (LoginResponse);
+  rpc ValidateToken(TokenRequest) returns (ValidateResponse);
+  rpc Logout(TokenRequest) returns (LogoutResponse);
+
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  string token = 1;
+}
+
+message TokenRequest {
+  string token = 1;
+}
+
+message ValidateResponse {
+  bool valid = 1;
+  string sub = 2;
+  string role = 3;
+  string message = 4;
+}
+
+message LogoutResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message RegisterResponse {
+  bool success = 1;
+  string message = 2;
+  string token = 3;
+  string sub = 4;
+  string role = 5;
+}
+
+message CreateUserRequest {
+  string email = 1;
+  string password = 2;
+  string role = 3; // "admin" | "owner-event" | "client"
+}
+
+message CreateUserResponse {
+  bool success = 1;
+  string message = 2;
+  string sub = 3;
+  string role = 4;
+}

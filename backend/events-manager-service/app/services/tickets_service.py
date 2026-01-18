@@ -1,0 +1,246 @@
+from __future__ import annotations
+
+from typing import Optional, Tuple, List
+import uuid
+
+from fastapi import HTTPException
+from peewee import IntegrityError, fn
+
+from app.repositories.tickets_repo import TicketsRepository
+from app.database.models import Ticket, Package, Event
+from app.dtos.tickets_schemas import TicketIn, TicketOut, TicketItem, Link
+from app.security.auth import Principal
+
+
+class TicketsService:
+
+    @staticmethod
+    def _is_admin(p: Principal) -> bool:
+        return "admin" in (getattr(p, "roles", []) or [])
+
+    @staticmethod
+    def _principal_user_id(p: Principal) -> int:
+        uid = getattr(p, "user_id", None)
+        if uid is None:
+            uid = getattr(p, "sub", None)
+        if uid is None:
+            raise HTTPException(status_code=401, detail="Unauthenticated")
+        try:
+            return int(uid)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=401, detail="Unauthenticated")
+
+    @staticmethod
+    def build_ticket_links(code: str) -> dict[str, Link]:
+        base = "/api/event-manager/tickets"
+        return {
+            "self": Link(href=f"{base}/{code}", type="GET"),
+            "parent": Link(href=base, type="GET"),
+        }
+
+    @staticmethod
+    def build_ticket_item(t: Ticket) -> TicketItem:
+        return TicketItem(
+            code=t.code,
+            package_id=t.package.id if t.package else None,
+            event_id=t.event.id if t.event else None,
+            links=TicketsService.build_ticket_links(t.code),
+        )
+
+    @staticmethod
+    def build_ticket_out(t: Ticket) -> TicketOut:
+        return TicketOut(
+            code=t.code,
+            package_id=t.package.id if t.package else None,
+            event_id=t.event.id if t.event else None,
+            links=TicketsService.build_ticket_links(t.code),
+        )
+
+    @staticmethod
+    def assert_can_access_ticket(code: str, p: Principal) -> None:
+        if TicketsService._is_admin(p):
+            return
+
+        t = TicketsRepository.get_by_code(code)
+        if not t:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+
+        uid = TicketsService._principal_user_id(p)
+
+        if t.event is not None:
+            if int(t.event.id_owner) != uid:
+                raise HTTPException(status_code=403, detail="Forbidden: not owner")
+            return
+
+        if t.package is not None:
+            if int(t.package.id_owner) != uid:
+                raise HTTPException(status_code=403, detail="Forbidden: not owner")
+            return
+
+        raise HTTPException(status_code=400, detail="Invalid ticket linkage")
+
+    @staticmethod
+    def assert_can_manage_ticket_target(
+        p: Principal,
+        *,
+        event_id: Optional[int],
+        package_id: Optional[int],
+    ) -> None:
+        if TicketsService._is_admin(p):
+            return
+
+        uid = TicketsService._principal_user_id(p)
+
+        if event_id is not None:
+            ev = Event.get_or_none(Event.id == event_id)
+            if ev is None:
+                raise HTTPException(status_code=404, detail="Event not found")
+            if int(ev.id_owner) != uid:
+                raise HTTPException(status_code=403, detail="Forbidden: not owner")
+            return
+
+        if package_id is not None:
+            pkg = Package.get_or_none(Package.id == package_id)
+            if pkg is None:
+                raise HTTPException(status_code=404, detail="Package not found")
+            if int(pkg.id_owner) != uid:
+                raise HTTPException(status_code=403, detail="Forbidden: not owner")
+            return
+
+        raise HTTPException(status_code=400, detail="Provide event_id or package_id")
+
+    @staticmethod
+    def _check_capacity_for_package(
+        package_id: int,
+    ) -> Tuple[bool, Optional[int], Optional[int]]:
+        package = Package.get_or_none(Package.id == package_id)
+        if package is None:
+            return False, None, None
+        if package.total_seats is None:
+            return True, None, None
+        current = (
+            Ticket.select(fn.COUNT(Ticket.code))
+            .where(Ticket.package == package)
+            .scalar()
+        )
+        return current < package.total_seats, current, package.total_seats
+
+    @staticmethod
+    def _check_capacity_for_event(
+        event_id: int,
+    ) -> Tuple[bool, Optional[int], Optional[int]]:
+        event = Event.get_or_none(Event.id == event_id)
+        if event is None:
+            return False, None, None
+        if event.total_seats is None:
+            return True, None, None
+        current = (
+            Ticket.select(fn.COUNT(Ticket.code))
+            .where(Ticket.event == event)
+            .scalar()
+        )
+        return current < event.total_seats, current, event.total_seats
+
+    @staticmethod
+    def list_tickets(
+        page: int,
+        per_page: int,
+        event_id: Optional[int] = None,
+        package_id: Optional[int] = None,
+        *,
+        p: Optional[Principal] = None,
+    ) -> Tuple[List[TicketItem], int]:
+        owner_id: Optional[int] = None
+        if p is not None and not TicketsService._is_admin(p):
+            owner_id = TicketsService._principal_user_id(p)
+
+        items, total = TicketsRepository.list_tickets(
+            page=page,
+            per_page=per_page,
+            event_id=event_id,
+            package_id=package_id,
+            owner_id=owner_id,
+        )
+        return [TicketsService.build_ticket_item(t) for t in items], total
+
+    @staticmethod
+    def get_ticket(code: str) -> Optional[TicketOut]:
+        t = TicketsRepository.get_by_code(code)
+        if not t:
+            return None
+        return TicketsService.build_ticket_out(t)
+
+    @staticmethod
+    def create_ticket(data: TicketIn) -> Tuple[int, dict | TicketOut]:
+        if (data.package_id is None and data.event_id is None) or (
+            data.package_id is not None and data.event_id is not None
+        ):
+            return 409, {"detail": "Exactly one of package_id or event_id must be provided."}
+
+        if data.package_id is not None:
+            ok, current, max_seats = TicketsService._check_capacity_for_package(data.package_id)
+            if ok is False and current is None and max_seats is None:
+                return 404, {"detail": "Package not found."}
+            if ok is False and current is not None and max_seats is not None:
+                return 409, {
+                    "detail": "No more available seats for this package.",
+                    "current_tickets": current,
+                    "total_seats": max_seats,
+                }
+
+        if data.event_id is not None:
+            ok, current, max_seats = TicketsService._check_capacity_for_event(data.event_id)
+            if ok is False and current is None and max_seats is None:
+                return 404, {"detail": "Event not found."}
+            if ok is False and current is not None and max_seats is not None:
+                return 409, {
+                    "detail": "No more available seats for this event.",
+                    "current_tickets": current,
+                    "total_seats": max_seats,
+                }
+
+        generated_code = uuid.uuid4().hex[:10].upper()
+
+        payload = {
+            "code": generated_code,
+            "package": data.package_id,
+            "event": data.event_id,
+        }
+
+        try:
+            t = TicketsRepository.create(payload)
+        except IntegrityError:
+            return 409, {"detail": "Ticket code already exists, please retry."}
+
+        return 201, TicketsService.build_ticket_out(t)
+
+    @staticmethod
+    def create_ticket_if_not_exists(
+        code: str,
+        event_id: Optional[int],
+        package_id: Optional[int],
+    ) -> Tuple[Optional[Ticket], bool]:
+        existing = TicketsRepository.get_by_code(code)
+        if existing:
+            return existing, True
+
+        payload = {
+            "code": code,
+            "package": package_id,
+            "event": event_id,
+        }
+
+        try:
+            t = TicketsRepository.create(payload)
+        except IntegrityError:
+            existing = TicketsRepository.get_by_code(code)
+            return existing, True
+
+        return t, False
+
+    @staticmethod
+    def delete_ticket(code: str) -> Tuple[int, Optional[dict]]:
+        deleted = TicketsRepository.delete(code)
+        if deleted:
+            return 204, None
+        return 404, {"detail": "Ticket not found"}
