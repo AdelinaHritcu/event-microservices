@@ -38,12 +38,14 @@ def health():
 
 
 @app.get("/")
+@app.get("/api/event-manager")
 def root():
     return {
         "_links": {
-            "self": {"href": "/api/event-manager/"},
-            "events": {"href": "/api/event-manager/events"},
-            "packages": {"href": "/api/event-manager/event-packets"},
-            "tickets": {"href": "/api/event-manager/tickets"},
+            "self": {"href": "/api/event-manager", "type": "GET"},
+            "events": {"href": "/api/event-manager/events", "type": "GET"},
+            "event-packets": {"href": "/api/event-manager/event-packets", "type": "GET"},
+            "tickets": {"href": "/api/event-manager/tickets", "type": "GET"},
+            "openapi": {"href": "/openapi.json", "type": "GET"},
         }
     }

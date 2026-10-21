@@ -1,5 +1,5 @@
 from typing import Optional, Dict, List
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class Link(BaseModel):
@@ -11,18 +11,11 @@ class TicketIn(BaseModel):
     package_id: Optional[int] = Field(default=None, ge=1)
     event_id: Optional[int] = Field(default=None, ge=1)
 
-    @field_validator("package_id", "event_id")
-    def validate_ids(cls, value):
-        if value is not None and value < 1:
-            raise ValueError("ID must be greater than or equal to 1.")
-        return value
-
-    @field_validator("event_id")
-    def validate_relation(cls, event_id, info):
-        package_id = info.data.get("package_id")
-        if (event_id is None and package_id is None) or (event_id is not None and package_id is not None):
+    @model_validator(mode="after")
+    def validate_relation(self):
+        if (self.event_id is None) == (self.package_id is None):
             raise ValueError("A ticket must be linked to exactly one of package_id or event_id.")
-        return event_id
+        return self
 
 
 class TicketItem(BaseModel):

@@ -22,6 +22,7 @@ class TicketInfo(BaseModel):
     package_id: Optional[int] = None
     event_name: Optional[str] = None
     location: Optional[str] = None
+    events: Optional[List[dict]] = None  # long format for package tickets
 
 
 class ClientBase(BaseModel):
@@ -79,4 +80,4 @@ class AddTicketToClient(BaseModel):
             event_id is not None and package_id is not None
         ):
             raise ValueError("Provide exactly one between event_id and package_id")
-        return event_id
+        return event_id

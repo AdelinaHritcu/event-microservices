@@ -39,6 +39,7 @@ class ClientsService:
     def add_ticket_to_client(
         client_id: str,
         ticket: dict,
+        token: Optional[str] = None,
     ) -> Tuple[Optional[dict], int, Optional[str]]:
         client = ClientsRepository.get_client_by_id(client_id)
         if not client:
@@ -52,19 +53,21 @@ class ClientsService:
         ):
             return None, 400, "Provide exactly one between event_id and package_id"
 
-        existing_tickets = client.get("tickets") or []
-        for t in existing_tickets:
-            if t.get("event_id") == event_id and t.get("package_id") == package_id:
-                return None, 409, "Ticket already exists"
-
+        # a client may buy several tickets for the same event/package (Lab 1, 1.1)
         code = uuid.uuid4().hex
 
-        response = data_client.create_ticket(code, event_id, package_id)
+        response = data_client.create_ticket(code, event_id, package_id, token)
 
         if response.status_code == 404:
             return None, 404, "Event or package not found"
         if response.status_code == 409:
-            return None, 409, "Ticket already exists"
+            try:
+                detail = response.json().get("detail")
+            except Exception:
+                detail = None
+            return None, 409, detail or "Ticket cannot be sold"
+        if response.status_code in (401, 403):
+            return None, response.status_code, "Not allowed to buy this ticket"
         if response.status_code not in (200, 201, 204):
             return None, 502, "Upstream data service error"
 
@@ -87,6 +90,10 @@ class ClientsService:
         if not ticket_doc["event_name"] and package:
             ticket_doc["event_name"] = package.get("name")
             ticket_doc["location"] = package.get("location")
+            ticket_doc["events"] = [
+                {"id": e.get("id"), "name": e.get("name"), "location": e.get("location")}
+                for e in data_client.get_package_events(package_id)
+            ]
 
         ClientsRepository.add_ticket(client_id, ticket_doc)
         updated_client = ClientsRepository.get_client_by_id(client_id)
@@ -100,6 +107,7 @@ class ClientsService:
     def validate_client_ticket(
         client_id: str,
         ticket_code: str,
+        token: Optional[str] = None,
     ) -> Tuple[ClientTicketDetailsResponse, int, Optional[str]]:
         client = ClientsRepository.get_client_by_id(client_id)
         if not client:
@@ -133,7 +141,7 @@ class ClientsService:
                 "Ticket not found for client",
             )
 
-        ticket_remote, status = data_client.get_ticket(ticket_code)
+        ticket_remote, status = data_client.get_ticket(ticket_code, token)
 
         if status == 404:
             return (

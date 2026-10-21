@@ -7,12 +7,22 @@ class EventsRepository:
 
     @staticmethod
     def list_events(*, name: Optional[str] = None, location: Optional[str] = None,
+                    available_tickets: Optional[int] = None,
                     page: int = 1, per_page: int = 10) -> Tuple[List[Event], int]:
         q = Event.select()
         if name:
             q = q.where(Event.name.contains(name))
         if location:
-            q = q.where(Event.location == location)
+            q = q.where(Event.location.contains(location))
+        if available_tickets is not None:
+            sold = (
+                Ticket.select(fn.COUNT(Ticket.code))
+                .where(Ticket.event == Event.id)
+            )
+            q = q.where(
+                Event.total_seats.is_null(False)
+                & ((Event.total_seats - sold) >= available_tickets)
+            )
 
         total = q.count()
         items = q.order_by(Event.id.asc()).paginate(page, per_page)

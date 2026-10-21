@@ -10,7 +10,7 @@ from app.dtos.clients_schemas import (
     Link,
     AddTicketToClient,
 )
-from app.security.auth import require_roles, Principal, require_self_or_admin
+from app.security.auth import require_roles, Principal, require_self_or_admin, bearer_token
 
 router = APIRouter(
     prefix="/api/clients",
@@ -98,6 +98,7 @@ def add_ticket_to_client(
     client_id: str,
     ticket: AddTicketToClient,
     p: Principal = Depends(require_roles("admin", "client")),
+    token: str = Depends(bearer_token),
 ):
     require_self_or_admin(client_id, p)
 
@@ -105,6 +106,7 @@ def add_ticket_to_client(
         updated_client, code, message = ClientsService.add_ticket_to_client(
             client_id,
             ticket.model_dump(),
+            token,
         )
     except HTTPException:
         raise
@@ -124,11 +126,13 @@ def validate_ticket(
     client_id: str,
     ticket_code: str,
     p: Principal = Depends(require_roles("admin", "owner-event")),
+    token: str = Depends(bearer_token),
 ):
     try:
         payload, code, message = ClientsService.validate_client_ticket(
             client_id,
             ticket_code,
+            token,
         )
     except HTTPException:
         raise
