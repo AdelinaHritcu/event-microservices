@@ -25,6 +25,11 @@ def require_auth(creds: HTTPAuthorizationCredentials = Depends(security)) -> Pri
     return Principal(sub=sub, role=role)
 
 
+def bearer_token(creds: HTTPAuthorizationCredentials = Depends(security)) -> str:
+    """Raw bearer token, forwarded on chain calls to Event WebService."""
+    return (creds.credentials or "").strip()
+
+
 def require_roles(*roles: str):
     roles_set = set(roles)
 

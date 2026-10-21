@@ -50,7 +50,7 @@ export function PublicPackagesPage() {
 
       const r = await apiFetchPublic<PackageListResponse>(
         EVENTS_API,
-        "/api/event-manager/packages?page=1&items_per_page=10",
+        "/api/event-manager/event-packets?page=1&items_per_page=10",
         "GET"
       );
 

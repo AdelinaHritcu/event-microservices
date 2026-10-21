@@ -92,3 +92,22 @@ class PackagesRepository:
             .order_by(Package.id)
         )
         return list(query)
+
+    @staticmethod
+    def get_link(package_id: int, event_id: int):
+        return EventPackage.get_or_none(
+            (EventPackage.package == package_id) & (EventPackage.event == event_id)
+        )
+
+    @staticmethod
+    def add_link(package_id: int, event_id: int) -> EventPackage:
+        return EventPackage.create(package=package_id, event=event_id)
+
+    @staticmethod
+    def remove_link(package_id: int, event_id: int) -> bool:
+        return (
+            EventPackage.delete()
+            .where((EventPackage.package == package_id) & (EventPackage.event == event_id))
+            .execute()
+            > 0
+        )
