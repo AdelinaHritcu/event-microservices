@@ -1,17 +1,17 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { clearToken, getToken, setToken } from "./session";
-import { login as loginApi } from "./authApi";
+import { login as loginApi, logout as logoutApi } from "./authApi";
 import { parseJwt, isExpired } from "./jwt";
 
 type AuthState =
   | { status: "anonymous" }
   | { status: "loading" }
-  | { status: "authenticated"; token: string; sub: string; role: string };
+  | { status: "authenticated"; token: string; sub: string; role: string; email: string };
 
 type AuthCtx = {
   state: AuthState;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const Ctx = createContext<AuthCtx | null>(null);
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!sub || !role) throw new Error("missing claims");
 
-      setState({ status: "authenticated", token: t, sub, role });
+      setState({ status: "authenticated", token: t, sub, role, email: String(payload.email ?? "") });
     } catch {
       clearToken();
       setState({ status: "anonymous" });
@@ -58,11 +58,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const role = String(payload.role ?? "");
         if (!sub || !role) throw new Error("missing claims");
 
-        setState({ status: "authenticated", token: t, sub, role });
+        setState({ status: "authenticated", token: t, sub, role, email: String(payload.email ?? "") });
       },
-      logout: () => {
-        clearToken();
-        setState({ status: "anonymous" });
+      logout: async () => {
+        const t = getToken();
+        try {
+          if (t) await logoutApi(t);
+        } catch {
+          // token already invalid / IDM down: still clear the local session
+        } finally {
+          clearToken();
+          setState({ status: "anonymous" });
+        }
       },
     }),
     [state]

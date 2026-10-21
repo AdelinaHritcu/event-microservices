@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.controllers.clients import router as clients_router
 from app.controllers.auth import router as auth_router
+from app.controllers.users import router as users_router
 
 
 @asynccontextmanager
@@ -28,8 +29,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(clients_router, tags=["clients"])
 app.include_router(auth_router)
+app.include_router(users_router)
+app.include_router(clients_router)
 
 @app.get("/health")
 def health():
@@ -39,7 +41,15 @@ def health():
 def root():
     return {
         "_links": {
-            "self": {"href": "/"},
-            "clients": {"href": "/api/clients"},
+            "self": {"href": "/", "type": "GET"},
+            "login": {"href": "/auth/login", "type": "POST"},
+            "logout": {"href": "/auth/logout", "type": "POST"},
+            "me": {"href": "/auth/me", "type": "GET"},
+            "clients": {"href": "/api/clients", "type": "GET"},
+            "my-profile": {"href": "/api/clients/me", "type": "GET"},
+            "my-tickets": {"href": "/api/clients/me/tickets", "type": "GET"},
+            "buyers": {"href": "/api/clients/buyers", "type": "GET"},
+            "users": {"href": "/api/users", "type": "GET"},
+            "openapi": {"href": "/openapi.json", "type": "GET"},
         }
     }

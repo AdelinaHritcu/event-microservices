@@ -8,9 +8,10 @@ class Link(BaseModel):
 
 
 class EventIn(BaseModel):
-    id_owner: int = Field(
+    id_owner: Optional[int] = Field(
+        default=None,
         ge=1,
-        description="ID of the user who owns the event."
+        description="Ignored: the owner is always taken from the JWS (sub).",
     )
     name: str = Field(
         min_length=3,

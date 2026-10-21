@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { ui } from "../ui/styles";
+import { apiFetchAuthed } from "../api/http";
+import { useAuth } from "../auth/AuthContext";
+
+const CLIENTS_API = import.meta.env.VITE_CLIENTS_API as string;
 
 const EVENTS_API = import.meta.env.VITE_EVENTS_API as string;
 
@@ -23,22 +27,22 @@ type PackageListResponse = {
   total_items: number;
 };
 
-async function apiFetchPublic<T>(baseUrl: string, path: string, method: string): Promise<T> {
-  const r = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-  });
-
-  const text = await r.text();
-  const body = text ? JSON.parse(text) : null;
-
-  if (!r.ok) {
-    throw body ?? { detail: `HTTP ${r.status}` };
-  }
-  return body as T;
-}
-
 export function PublicPackagesPage() {
+  const { state } = useAuth();
+  const isClient = state.status === "authenticated" && state.role === "client";
+  const [notice, setNotice] = useState<string | null>(null);
+
+  const buy = async (id: number) => {
+    setNotice(null);
+    try {
+      // chain call: Client WebService -> Event WebService
+      await apiFetchAuthed(CLIENTS_API, "/api/clients/me/tickets", "POST", { package_id: id });
+      setNotice("Ticket purchased. See it under My tickets.");
+      load({ v: false });
+    } catch (e: any) {
+      setError(e?.detail || "purchase failed");
+    }
+  };
   const [data, setData] = useState<PackageListResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
@@ -48,7 +52,7 @@ export function PublicPackagesPage() {
       setError(null);
       setData(null);
 
-      const r = await apiFetchPublic<PackageListResponse>(
+      const r = await apiFetchAuthed<PackageListResponse>(
         EVENTS_API,
         "/api/event-manager/event-packets?page=1&items_per_page=10",
         "GET"
@@ -85,7 +89,7 @@ export function PublicPackagesPage() {
   return (
     <div style={ui.page}>
       <div style={ui.headerRow}>
-        <h2 style={ui.title}>Public Packages</h2>
+        <h2 style={ui.title}>Event packages</h2>
 
         <div style={ui.toolbar}>
           <input
@@ -114,6 +118,7 @@ export function PublicPackagesPage() {
         </div>
 
         {error ? <div style={ui.alertError}>{error}</div> : null}
+        {notice ? <div style={{ marginTop: 12, ...ui.muted }}>{notice}</div> : null}
 
         {!data ? (
           <div style={{ padding: 12, ...ui.muted }}>Loading...</div>
@@ -128,6 +133,7 @@ export function PublicPackagesPage() {
                   <th style={ui.th}>Name</th>
                   <th style={ui.th}>Location</th>
                   <th style={ui.th}>Available</th>
+                  {isClient ? <th style={ui.th}></th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -137,6 +143,13 @@ export function PublicPackagesPage() {
                     <td style={ui.td}>{p.name}</td>
                     <td style={ui.td}>{p.location}</td>
                     <td style={ui.td}>{p.available_tickets ?? "-"}</td>
+                    {isClient ? (
+                      <td style={ui.td}>
+                        <button style={ui.button} onClick={() => buy(p.id)}>
+                          Buy
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

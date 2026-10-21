@@ -6,10 +6,10 @@ import jwt as pyjwt
 def issue_token(user_id: int, role: str, email: str) -> str:
     secret = os.getenv("IDM_JWT_SECRET", "change_me")
     alg = os.getenv("IDM_JWT_ALG", "HS256")
-    issuer = os.getenv("IDM_JWT_ISSUER", "pos-idm")
+    issuer = os.getenv("IDM_JWT_ISSUER", "https://pos-idm-service:50051")
 
     now = int(time.time())
-    exp = now + int(os.getenv("IDM_JWT_TTL_SECONDS", "900"))
+    exp = now + int(os.getenv("IDM_JWT_TTL_SECONDS", "3600"))
 
     payload = {
         "iss": issuer,
@@ -26,7 +26,7 @@ def issue_token(user_id: int, role: str, email: str) -> str:
 def decode_and_verify(token: str) -> dict:
     secret = os.getenv("IDM_JWT_SECRET", "change_me")
     alg = os.getenv("IDM_JWT_ALG", "HS256")
-    issuer = os.getenv("IDM_JWT_ISSUER", "pos-idm")
+    issuer = os.getenv("IDM_JWT_ISSUER", "https://pos-idm-service:50051")
 
     payload = pyjwt.decode(
         token,

@@ -1,8 +1,8 @@
-fastapi
-uvicorn[standard]
-pydantic
-peewee
-mysqlclient
-python-dotenv
-grpcio
-grpcio-tools
+fastapi==0.158.1
+uvicorn[standard]==0.54.0
+pydantic==2.13.5
+peewee==4.5.3
+mysqlclient>=2.2,<3
+python-dotenv==1.2.3
+grpcio==1.67.0
+protobuf==5.27.2

@@ -10,6 +10,24 @@ const linkStyle = (active: boolean) => ({
   background: active ? "#e5e7eb" : "transparent",
 });
 
+const LINKS: Record<string, [string, string][]> = {
+  admin: [
+    ["/users", "Users"],
+    ["/clients", "Clients"],
+  ],
+  "owner-event": [
+    ["/events", "My events"],
+    ["/packages", "Packages"],
+    ["/buyers", "Buyers"],
+    ["/browse/events", "Browse"],
+  ],
+  client: [
+    ["/browse/events", "Events"],
+    ["/browse/packages", "Packages"],
+    ["/my-tickets", "My tickets"],
+  ],
+};
+
 export function NavBar() {
   const { state, logout } = useAuth();
   const loc = useLocation();
@@ -27,15 +45,13 @@ export function NavBar() {
     >
       <strong style={{ marginRight: 16 }}>Event Manager</strong>
 
-      <Link to="/clients" style={linkStyle(loc.pathname === "/clients")}>
-        Clients
-      </Link>
-      <Link to="/packages" style={linkStyle(loc.pathname === "/packages")}>
-        Packages
-      </Link>
-      <Link to="/events" style={linkStyle(loc.pathname === "/events")}>
-        Events
-      </Link>
+      {state.status === "authenticated"
+        ? (LINKS[state.role] ?? []).map(([to, label]) => (
+            <Link key={to} to={to} style={linkStyle(loc.pathname === to)}>
+              {label}
+            </Link>
+          ))
+        : null}
 
       <div style={{ flex: 1 }} />
 
@@ -51,7 +67,7 @@ export function NavBar() {
             cursor: "pointer",
           }}
         >
-          Logout
+          Logout ({state.email || state.role})
         </button>
       ) : (
         <Link to="/login" style={linkStyle(loc.pathname === "/login")}>

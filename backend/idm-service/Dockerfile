@@ -15,4 +15,6 @@ RUN python -m grpc_tools.protoc -I ./proto \
 
 ENV PYTHONPATH=/app:/app/app
 
+EXPOSE 50051
+
 CMD ["python", "-m", "app.server"]

@@ -7,6 +7,7 @@ from app.controllers import packages as packages_controller
 from app.controllers import tickets as tickets_controller
 from app.database.init_mariadb import init_db
 from fastapi.middleware.cors import CORSMiddleware
+from app.links import client_links
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -47,5 +48,6 @@ def root():
             "event-packets": {"href": "/api/event-manager/event-packets", "type": "GET"},
             "tickets": {"href": "/api/event-manager/tickets", "type": "GET"},
             "openapi": {"href": "/openapi.json", "type": "GET"},
+            **client_links(),
         }
     }

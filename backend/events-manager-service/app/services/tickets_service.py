@@ -62,6 +62,13 @@ class TicketsService:
     # ---------- authorization helpers ----------
 
     @staticmethod
+    def get_by_code_or_404(code: str) -> Ticket:
+        t = TicketsRepository.get_by_code(code)
+        if not t:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+        return t
+
+    @staticmethod
     def assert_can_access_ticket(code: str, p: Principal) -> Ticket:
         t = TicketsRepository.get_by_code(code)
         if not t:

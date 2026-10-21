@@ -49,7 +49,7 @@ def list_tickets(
     event_id: Optional[int] = Query(None),
     package_id: Optional[int] = Query(None),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     items, total = TicketsService.list_tickets(
         page=page,
@@ -80,7 +80,7 @@ def upsert_ticket(
     code: str,
     payload: TicketIn,
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event", "client")),
+    p: Principal = Depends(require_roles("owner-event", "client")),
 ):
     """
     Sell a ticket with a client-chosen code (used by Client WebService – chain call).
@@ -103,8 +103,16 @@ def upsert_ticket(
 def get_ticket(
     code: str,
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event", "client")),
 ):
+    """
+    Ticket validation endpoint used by Client WebService (chain call).
+    owner-event: only tickets for its own events/packages;
+    client: the Client WebService has already checked the code is in the client's document.
+    """
+    if p.role == "client":
+        t = TicketsService.get_by_code_or_404(code)
+        return TicketsService.build_ticket_out(t)
     t = TicketsService.assert_can_access_ticket(code, p)
     return TicketsService.build_ticket_out(t)
 
@@ -113,7 +121,7 @@ def get_ticket(
 def create_ticket(
     data: TicketIn,
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     TicketsService.assert_can_manage_ticket_target(
         p, event_id=data.event_id, package_id=data.package_id
@@ -127,7 +135,7 @@ def create_ticket(
 def delete_ticket(
     code: str,
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     TicketsService.assert_can_access_ticket(code, p)
     code_, payload = TicketsService.delete_ticket(code)

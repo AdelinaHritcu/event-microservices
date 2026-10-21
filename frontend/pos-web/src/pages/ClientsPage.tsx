@@ -35,7 +35,7 @@ export function ClientsPage() {
 
       const r = await apiFetchAuthed<ClientsListResponse>(
         CLIENTS_API,
-        "/api/clients/?page=1&items_per_page=10",
+        "/api/clients?page=1&items_per_page=10",
         "GET"
       );
 

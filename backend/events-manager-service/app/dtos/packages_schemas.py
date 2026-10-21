@@ -8,7 +8,9 @@ class Link(BaseModel):
 
 
 class PackageIn(BaseModel):
-    id_owner: int = Field(ge=1)
+    id_owner: Optional[int] = Field(
+        default=None, ge=1, description="Ignored: the owner is always taken from the JWS (sub)."
+    )
     name: str = Field(min_length=3, max_length=100)
     location: str = Field(min_length=3, max_length=100)
     description: Optional[str] = Field(default=None, max_length=1000)

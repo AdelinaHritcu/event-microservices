@@ -3,3 +3,4 @@ grpcio-tools==1.67.0
 protobuf==5.27.2
 PyJWT==2.9.0
 bcrypt==4.2.0
+PyMySQL==1.1.1

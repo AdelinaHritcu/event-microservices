@@ -2,6 +2,7 @@ from typing import Optional
 
 from app.repositories.events_repo import EventsRepository
 from app.repositories.packages_repo import PackagesRepository
+from app.links import buy_ticket_link, client_links
 
 
 def _links(e_id: int):
@@ -11,6 +12,8 @@ def _links(e_id: int):
         "parent": {"href": "/api/event-manager/events", "type": "GET"},
         "tickets": {"href": f"{base}/tickets", "type": "GET"},
         "event-packets": {"href": f"{base}/event-packets", "type": "GET"},
+        **buy_ticket_link(),
+        **client_links(),
     }
 
 
