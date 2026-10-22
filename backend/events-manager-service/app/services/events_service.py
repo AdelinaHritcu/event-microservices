@@ -58,9 +58,11 @@ def get_event(event_id: int):
     return _to_dict(e)
 
 
-def create_event(data, owner_id: int):
+def create_event(data, owner_id: int, event_id: Optional[int] = None):
     payload = data.model_dump() if hasattr(data, "model_dump") else data.dict()
     payload["id_owner"] = owner_id
+    if event_id is not None:
+        payload["id"] = event_id  # PUT on a new URI: the client chose the identifier
     e = EventsRepository.create_event(payload)
     return get_event(e.id)
 

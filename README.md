@@ -58,7 +58,8 @@ docker compose up --build
 ```
 
 Ordinea de pornire este impusă prin `depends_on` + `healthcheck`: baza de date, apoi serviciul.
-Dacă ai rulat o versiune mai veche (cu alte parole), șterge volumele: `docker compose down -v`.
+Dacă ai rulat o versiune mai veche (cu alte parole sau fără utilizatorii MongoDB noi), șterge volumele:
+`docker compose down -v` (scripturile de inițializare rulează doar pe un volum gol).
 
 ## Rulare manuală (`docker network` + `docker run`)
 
@@ -86,7 +87,7 @@ docker run -d --name $env:EVENTS_DB_CONTAINER --network pos-network `
 
 docker run -d --name $env:CLIENTS_DB_CONTAINER --network pos-network `
   -e MONGO_INITDB_ROOT_USERNAME=$env:MONGO_ADMIN_USER -e MONGO_INITDB_ROOT_PASSWORD_FILE=/run/secrets/mongo_admin_pass `
-  -e MONGO_DB_NAME=$env:MONGO_DB_NAME -e MONGO_DB_OWNER_USER=$env:MONGO_DB_OWNER_USER -e MONGO_APP_USER=$env:MONGO_APP_USER `
+  -e MONGO_DB_NAME=$env:MONGO_DB_NAME -e MONGO_USER_ADMIN_USER=$env:MONGO_USER_ADMIN_USER -e MONGO_DB_OWNER_USER=$env:MONGO_DB_OWNER_USER -e MONGO_APP_USER=$env:MONGO_APP_USER `
   -v "${S}:/run/secrets:ro" -v "${PWD}\backend\mongo-init:/docker-entrypoint-initdb.d:ro" mongo:8 mongod --auth
 
 # 3. imaginile serviciilor
@@ -100,7 +101,7 @@ docker run -d --name pos-idm-service --network pos-network -p 50051:50051 `
   -e IDM_JWT_SECRET=$env:IDM_JWT_SECRET -e IDM_JWT_ISSUER=$env:IDM_JWT_ISSUER -e IDM_TLS_CERT=/certs/idm.crt -e IDM_TLS_KEY=/certs/idm.key `
   -v "${S}:/run/secrets:ro" -v "${C}:/certs:ro" pos-idm
 
-docker run -d --name pos-events-manager --network pos-network -p 8000:8000 --user 0:0 `
+docker run -d --name pos-events-manager --network pos-network -p 8000:8000 `
   -e DB_HOST=$env:EVENTS_DB_CONTAINER -e DB_NAME=$env:DB_NAME -e DB_USER=$env:DB_USER -e DB_PASS_FILE=/run/secrets/db_user_pass `
   -e IDM_GRPC_HOST=pos-idm-service -e IDM_TLS_ROOT_CERT=/certs/idm.crt -e CLIENTS_PUBLIC_URL=$env:CLIENTS_PUBLIC_URL `
   -v "${S}:/run/secrets:ro" -v "${C}:/certs:ro" pos-events

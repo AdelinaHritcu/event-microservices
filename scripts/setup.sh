@@ -11,7 +11,7 @@ if [ ! -f .env ]; then
 fi
 
 mkdir -p secrets
-for n in db_root_pass db_user_pass db_admin_pass mongo_admin_pass mongo_db_owner_pass mongo_app_pass idm_db_root_pass idm_db_pass; do
+for n in db_root_pass db_user_pass db_admin_pass mongo_admin_pass mongo_user_admin_pass mongo_db_owner_pass mongo_app_pass idm_db_root_pass idm_db_pass; do
   f="secrets/$n.txt"
   if [ ! -f "$f" ]; then
     LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24 > "$f"

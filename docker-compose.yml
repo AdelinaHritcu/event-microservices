@@ -30,7 +30,6 @@ services:
       start_period: 20s
 
   mongo:
-    user: "0:0"
     image: mongo:8
     container_name: ${CLIENTS_DB_CONTAINER:-pos-mongo}
     restart: unless-stopped
@@ -40,6 +39,8 @@ services:
       MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongo_admin_pass
 
       MONGO_DB_NAME: ${MONGO_DB_NAME}
+
+      MONGO_USER_ADMIN_USER: ${MONGO_USER_ADMIN_USER}
 
       MONGO_DB_OWNER_USER: ${MONGO_DB_OWNER_USER}
       MONGO_DB_OWNER_PASS_FILE: /run/secrets/mongo_db_owner_pass
@@ -53,6 +54,7 @@ services:
       - pos-network
     secrets:
       - mongo_admin_pass
+      - mongo_user_admin_pass
       - mongo_db_owner_pass
       - mongo_app_pass
     healthcheck:
@@ -128,7 +130,6 @@ services:
       start_period: 15s
 
   events-manager-service:
-    user: "0:0"
     build:
       context: ./backend/events-manager-service
       dockerfile: Dockerfile
@@ -221,6 +222,8 @@ secrets:
     file: ./secrets/db_admin_pass.txt
   mongo_admin_pass:
     file: ./secrets/mongo_admin_pass.txt
+  mongo_user_admin_pass:
+    file: ./secrets/mongo_user_admin_pass.txt
   mongo_db_owner_pass:
     file: ./secrets/mongo_db_owner_pass.txt
   mongo_app_pass:

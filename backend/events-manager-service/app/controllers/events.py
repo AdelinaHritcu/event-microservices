@@ -1,7 +1,7 @@
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from peewee import IntegrityError
 
 from app.controllers.deps import get_db
@@ -116,15 +116,28 @@ def create_event(
     return to_event_out(created)
 
 
-@router.put("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
-def update_event(
+@router.put(
+    "/{event_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={201: {"model": EventOut, "description": "Created at the given id"}, 204: {"description": "Replaced"}},
+)
+def put_event(
     data: EventIn,
     event_id: int = Path(..., ge=1),
     db=Depends(get_db),
     p: Principal = Depends(require_roles("owner-event")),
 ):
-    require_event_owner(event_id, p)
+    """Lab 2: PUT creates the resource (201) or replaces it (204)."""
     owner_id = int(p.sub)
+    if events_service.get_event(event_id) is None:
+        try:
+            created = events_service.create_event(data, owner_id, event_id)
+        except IntegrityError:
+            raise HTTPException(status_code=409, detail="Event name already exists")
+        body = to_event_out(created).model_dump(by_alias=True)
+        return JSONResponse(status_code=201, content=body, headers={"Location": f"{BASE}/{event_id}"})
+
+    require_event_owner(event_id, p)
 
     try:
         code, res = events_service.update_event(event_id, data, owner_id)

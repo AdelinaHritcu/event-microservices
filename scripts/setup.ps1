@@ -15,7 +15,7 @@ if (-not (Test-Path ".env")) {
 }
 
 New-Item -ItemType Directory -Force -Path "secrets" | Out-Null
-$names = "db_root_pass","db_user_pass","db_admin_pass","mongo_admin_pass","mongo_db_owner_pass","mongo_app_pass","idm_db_root_pass","idm_db_pass"
+$names = "db_root_pass","db_user_pass","db_admin_pass","mongo_admin_pass","mongo_user_admin_pass","mongo_db_owner_pass","mongo_app_pass","idm_db_root_pass","idm_db_pass"
 foreach ($n in $names) {
     $f = "secrets\$n.txt"
     if (-not (Test-Path $f)) {

@@ -86,8 +86,10 @@ def create_package(
     location: str,
     description: Optional[str],
     total_seats: Optional[int],
+    package_id: Optional[int] = None,
 ) -> Package:
     data = {
+        "id": package_id,
         "id_owner": id_owner,
         "name": name,
         "location": location,

@@ -1,7 +1,7 @@
 from typing import Optional, Dict, Any, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from peewee import IntegrityError
 
 from app.controllers.deps import get_db
@@ -158,13 +158,33 @@ def create_event_packet(
     return build_package_out(package, packages_service.compute_available_tickets(package))
 
 
-@router.put("/{package_id}", status_code=status.HTTP_204_NO_CONTENT)
-def update_event_packet(
+@router.put(
+    "/{package_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={201: {"model": PackageOut, "description": "Created at the given id"}, 204: {"description": "Replaced"}},
+)
+def put_event_packet(
     payload: PackageIn,
     package_id: int = Path(..., ge=1),
     db=Depends(get_db),
     p: Principal = Depends(require_roles("owner-event")),
 ):
+    """Lab 2: PUT creates the resource (201) or replaces it (204)."""
+    if packages_service.get_package(package_id) is None:
+        try:
+            created = packages_service.create_package(
+                id_owner=int(p.sub),
+                name=payload.name,
+                location=payload.location,
+                description=payload.description,
+                total_seats=payload.total_seats,
+                package_id=package_id,
+            )
+        except IntegrityError:
+            raise HTTPException(status_code=409, detail="Package name already exists")
+        body = build_package_out(created, packages_service.compute_available_tickets(created)).model_dump(by_alias=True)
+        return JSONResponse(status_code=201, content=body, headers={"Location": f"{BASE}/{package_id}"})
+
     package = require_package_owner(package_id, p)
     try:
         code, res = packages_service.update_package(

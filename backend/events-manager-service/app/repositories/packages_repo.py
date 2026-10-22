@@ -15,8 +15,8 @@ class PackagesRepository:
         if not isinstance(data, dict):
             raise TypeError("data must be a dict")
 
-        allowed_fields = {"id_owner", "name", "location", "description", "total_seats"}
-        clean_data = {k: v for k, v in data.items() if k in allowed_fields}
+        allowed_fields = {"id", "id_owner", "name", "location", "description", "total_seats"}
+        clean_data = {k: v for k, v in data.items() if k in allowed_fields and (k != "id" or v is not None)}
 
         if "name" not in clean_data or "id_owner" not in clean_data:
             raise ValueError("id_owner and name are required")

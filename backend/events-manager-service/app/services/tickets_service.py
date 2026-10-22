@@ -8,7 +8,7 @@ from peewee import IntegrityError, fn
 
 from app.database.mariadb_connection import db
 from app.repositories.tickets_repo import TicketsRepository
-from app.database.models import Ticket, Package, Event
+from app.database.models import Ticket, Package, Event, EventPackage
 from app.dtos.tickets_schemas import TicketIn, TicketOut, TicketItem, Link
 from app.security.auth import Principal
 
@@ -129,6 +129,8 @@ class TicketsService:
             return 404, {"detail": f"{label.capitalize()} not found."}
         if target.total_seats is None:
             return 409, {"detail": f"This {label} has no seats configured; tickets cannot be sold."}
+        if package_id is not None and not EventPackage.select().where(EventPackage.package == package_id).exists():
+            return 409, {"detail": "This package contains no events yet; tickets cannot be sold."}
 
         current = Ticket.select(fn.COUNT(Ticket.code)).where(field == target_id).scalar() or 0
         if current >= target.total_seats:
