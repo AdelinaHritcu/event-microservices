@@ -1,3 +1,4 @@
+import re
 from typing import Optional, List
 
 from bson import ObjectId
@@ -65,7 +66,8 @@ class ClientsRepository:
     def list_clients(page: int, per_page: int, email: Optional[str] = None):
         q: dict = {}
         if email:
-            q["email"] = {"$regex": email, "$options": "i"}
+            # escape user input: it is a literal substring, not a regular expression
+            q["email"] = {"$regex": re.escape(email), "$options": "i"}
         skip = (page - 1) * per_page
         items = list(col.find(q).skip(skip).limit(per_page))
         total = col.count_documents(q)
