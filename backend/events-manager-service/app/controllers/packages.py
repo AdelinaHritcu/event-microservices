@@ -21,7 +21,6 @@ from app.services.tickets_service import TicketsService
 from app.security.auth import require_roles, Principal, require_owner
 
 BASE = "/api/event-manager/event-packets"
-VIEWERS = require_roles("owner-event", "client")
 
 router = APIRouter(
     prefix=BASE,
@@ -96,9 +95,10 @@ def list_event_packets(
     event_name: Optional[str] = Query(None, description="Partial match on included events' names"),
     name: Optional[str] = Query(None, description="Partial match on package name"),
     location: Optional[str] = Query(None, description="Partial match on location"),
+    id_owner: Optional[int] = Query(None, ge=1, description="Only packages created by this owner"),
     db=Depends(get_db),
-    p: Principal = Depends(VIEWERS),
 ):
+    """Public: guests can browse event packages (Lab 6)."""
     rows, total = packages_service.list_packages(
         page=page,
         per_page=items_per_page,
@@ -107,6 +107,7 @@ def list_event_packets(
         event_name=event_name,
         name=name,
         location=location,
+        id_owner=id_owner,
     )
 
     q = ""
@@ -116,6 +117,7 @@ def list_event_packets(
         ("event_name", event_name),
         ("name", name),
         ("location", location),
+        ("id_owner", id_owner),
     ):
         if val is not None and val != "":
             q += f"&{key}={val}"
@@ -130,7 +132,7 @@ def list_event_packets(
 
 
 @router.get("/{package_id}", response_model=PackageOut)
-def get_event_packet(package_id: int = Path(..., ge=1), db=Depends(get_db), p: Principal = Depends(VIEWERS)):
+def get_event_packet(package_id: int = Path(..., ge=1), db=Depends(get_db)):
     package = get_package_or_404(package_id)
     return build_package_out(package, packages_service.compute_available_tickets(package))
 
@@ -156,7 +158,7 @@ def create_event_packet(
     return build_package_out(package, packages_service.compute_available_tickets(package))
 
 
-@router.put("/{package_id}", response_model=PackageOut)
+@router.put("/{package_id}", status_code=status.HTTP_204_NO_CONTENT)
 def update_event_packet(
     payload: PackageIn,
     package_id: int = Path(..., ge=1),
@@ -175,7 +177,8 @@ def update_event_packet(
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Package name already exists")
     raise_for(code, res)
-    return build_package_out(res, packages_service.compute_available_tickets(res))
+    # Lab 2: PUT that replaces an existing resource -> 204 No Content
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{package_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -193,7 +196,7 @@ def delete_event_packet(
 # ------------------------------------------------- packet <-> events
 
 @router.get("/{package_id}/events")
-def list_events_for_event_packet(package_id: int = Path(..., ge=1), db=Depends(get_db), p: Principal = Depends(VIEWERS)):
+def list_events_for_event_packet(package_id: int = Path(..., ge=1), db=Depends(get_db)):
     get_package_or_404(package_id)
     events = packages_service.list_events_for_package(package_id)
     return {

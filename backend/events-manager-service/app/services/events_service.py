@@ -38,11 +38,13 @@ def list_events(
     name: Optional[str] = None,
     location: Optional[str] = None,
     available_tickets: Optional[int] = None,
+    id_owner: Optional[int] = None,
 ):
     events, total = EventsRepository.list_events(
         name=name,
         location=location,
         available_tickets=available_tickets,
+        id_owner=id_owner,
         page=page,
         per_page=per_page,
     )

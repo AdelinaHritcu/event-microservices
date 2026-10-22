@@ -18,10 +18,11 @@ class EventIn(BaseModel):
         max_length=100,
         description="Name of the event."
     )
-    location: str = Field(
+    location: Optional[str] = Field(
+        default=None,
         min_length=3,
         max_length=100,
-        description="Location of the event."
+        description="Location of the event (optional)."
     )
     description: Optional[str] = Field(
         default=None,
@@ -44,7 +45,7 @@ class EventOut(BaseModel):
     id: int
     id_owner: int
     name: str
-    location: str
+    location: Optional[str] = None
     description: Optional[str] = None
     total_seats: Optional[int] = Field(default=None, ge=0)
     available_seats: Optional[int] = Field(default=None, ge=0)
@@ -62,7 +63,7 @@ class EventItem(BaseModel):
     id: int
     id_owner: int
     name: str
-    location: str
+    location: Optional[str] = None
     description: Optional[str] = None
     total_seats: Optional[int] = Field(default=None, ge=0)
     available_seats: Optional[int] = Field(default=None, ge=0)

@@ -12,7 +12,7 @@ class PackageIn(BaseModel):
         default=None, ge=1, description="Ignored: the owner is always taken from the JWS (sub)."
     )
     name: str = Field(min_length=3, max_length=100)
-    location: str = Field(min_length=3, max_length=100)
+    location: Optional[str] = Field(default=None, min_length=3, max_length=100)
     description: Optional[str] = Field(default=None, max_length=1000)
     total_seats: Optional[int] = Field(default=None)
 
@@ -27,7 +27,7 @@ class PackageItem(BaseModel):
     id: int
     id_owner: int
     name: str
-    location: str
+    location: Optional[str] = None
     description: Optional[str] = None
     total_seats: Optional[int] = Field(default=None, ge=0)
     available_tickets: Optional[int] = Field(default=None, ge=0)
@@ -51,7 +51,7 @@ class PackageOut(BaseModel):
     id: int
     id_owner: int
     name: str
-    location: str
+    location: Optional[str] = None
     description: Optional[str] = None
     total_seats: Optional[int] = Field(default=None, ge=0)
     available_tickets: Optional[int] = Field(default=None, ge=0)

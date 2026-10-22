@@ -108,10 +108,12 @@ def get_me(p: Principal = Depends(require_roles("client"))):
     return _out(ClientsService.get_client_by_email(p.email))
 
 
-@router.put("/me", response_model=ClientOut)
+@router.put("/me", status_code=status.HTTP_204_NO_CONTENT)
 def update_me(payload: ClientUpdate, p: Principal = Depends(require_roles("client"))):
     doc = ClientsService.get_client_by_email(p.email)
-    return _out(ClientsService.update_client(str(doc["_id"]), payload))
+    ClientsService.update_client(str(doc["_id"]), payload)
+    # Lab 2: PUT that replaces an existing resource -> 204 No Content
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me/tickets")
@@ -157,14 +159,15 @@ def get_client(client_id: str, p: Principal = Depends(require_roles("admin", "cl
     return _out(_load_for(client_id, p))
 
 
-@router.put("/{client_id}", response_model=ClientOut)
+@router.put("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)
 def update_client(
     client_id: str,
     payload: ClientUpdate,
     p: Principal = Depends(require_roles("admin", "client")),
 ):
     _load_for(client_id, p)
-    return _out(ClientsService.update_client(client_id, payload))
+    ClientsService.update_client(client_id, payload)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{client_id}", status_code=status.HTTP_204_NO_CONTENT)

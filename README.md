@@ -130,11 +130,21 @@ se creează automat și documentul MongoDB (legătura utilizator–client se fac
 
 | Rol | Poate |
 | :--- | :--- |
+| vizitator (fără login) | vede evenimentele și pachetele (rutele `GET` publice din Event WebService) |
 | admin | gestionează utilizatorii (`/api/users`) și datele clienților (`/api/clients`); nu are acces la evenimente / bilete |
 | owner-event | gestionează complet evenimentele / pachetele proprii (`ID_OWNER` = `sub` din JWS), vede evenimentele celorlalți, vede datele publice ale cumpărătorilor (`/api/clients/buyers`) |
 | client | își gestionează profilul (`/api/clients/me`), vede evenimentele și pachetele, cumpără și validează bilete (`/api/clients/me/tickets`) |
 
-## Frontend (opțional)
+Toate celelalte rute cer `Authorization: Bearer <JWS>`: 401 fără token / token invalid, 403 dacă rolul nu are drept.
+`PUT` pe o resursă existentă întoarce `204 No Content`.
+
+## CORS
+
+Ambele servicii REST acceptă cereri cross-origin doar de la originile din `CORS_ORIGINS`
+(implicit `http://localhost:5173,http://127.0.0.1:5173`), cu metodele `GET, POST, PUT, DELETE`
+și header-ele `Authorization, Content-Type, Accept`.
+
+## Frontend (ReactJS, laboratorul 6)
 
 ```bash
 cd frontend/pos-web
@@ -142,3 +152,10 @@ cp .env.example .env
 npm install
 npm run dev     # http://localhost:5173
 ```
+
+| Rol | Pagini |
+| :--- | :--- |
+| vizitator | Events, Packages (căutare + paginare prin API) |
+| owner-event | My events, My packages (creare / editare / ștergere, evenimente din pachet, bilete vândute), Buyers, All events / packages |
+| client | Events, Packages (cumpărare bilete), My tickets (validare), Profile |
+| admin | Users (creare / ștergere conturi), Clients |

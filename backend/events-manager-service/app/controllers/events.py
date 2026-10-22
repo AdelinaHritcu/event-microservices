@@ -27,7 +27,6 @@ router = APIRouter(
 )
 
 BASE = "/api/event-manager/events"
-VIEWERS = require_roles("owner-event", "client")
 
 
 def _links(d: dict):
@@ -64,15 +63,17 @@ def list_events(
     name: Optional[str] = Query(None, description="Partial match on name"),
     location: Optional[str] = Query(None, description="Partial match on location"),
     available_tickets: Optional[int] = Query(None, ge=0, description="Minimum available tickets"),
+    id_owner: Optional[int] = Query(None, ge=1, description="Only events created by this owner"),
     db=Depends(get_db),
-    p: Principal = Depends(VIEWERS),
 ):
+    """Public: guests can browse events (Lab 6)."""
     rows, total = events_service.list_events(
         page=page,
         per_page=items_per_page,
         name=name,
         location=location,
         available_tickets=available_tickets,
+        id_owner=id_owner,
     )
 
     q = ""
@@ -82,6 +83,8 @@ def list_events(
         q += f"&location={location}"
     if available_tickets is not None:
         q += f"&available_tickets={available_tickets}"
+    if id_owner is not None:
+        q += f"&id_owner={id_owner}"
 
     return EventListResponse(
         items=[to_event_item(r) for r in rows],
@@ -93,7 +96,7 @@ def list_events(
 
 
 @router.get("/{event_id}", response_model=EventOut)
-def get_event(event_id: int = Path(..., ge=1), db=Depends(get_db), p: Principal = Depends(VIEWERS)):
+def get_event(event_id: int = Path(..., ge=1), db=Depends(get_db)):
     return to_event_out(get_event_or_404(event_id))
 
 
@@ -113,7 +116,7 @@ def create_event(
     return to_event_out(created)
 
 
-@router.put("/{event_id}", response_model=EventOut)
+@router.put("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def update_event(
     data: EventIn,
     event_id: int = Path(..., ge=1),
@@ -128,7 +131,8 @@ def update_event(
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Event name already exists")
     raise_for(code, res)
-    return to_event_out(res)
+    # Lab 2: PUT that replaces an existing resource -> 204 No Content
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -153,7 +157,6 @@ def delete_event(
 def list_event_packets_for_event(
     event_id: int = Path(..., ge=1),
     db=Depends(get_db),
-    p: Principal = Depends(VIEWERS),
 ):
     get_event_or_404(event_id)
     packages = packages_service.list_packages_for_event(event_id)

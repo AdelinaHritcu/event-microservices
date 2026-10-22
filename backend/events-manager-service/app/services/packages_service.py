@@ -36,8 +36,12 @@ def list_packages(
     event_name: Optional[str] = None,
     name: Optional[str] = None,
     location: Optional[str] = None,
+    id_owner: Optional[int] = None,
 ):
     q = Package.select()
+
+    if id_owner is not None:
+        q = q.where(Package.id_owner == id_owner)
 
     if name:
         q = q.where(Package.name.contains(name))

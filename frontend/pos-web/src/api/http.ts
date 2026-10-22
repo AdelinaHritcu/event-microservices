@@ -11,6 +11,12 @@ function readDetail(x: any): string {
   if (!x) return "";
   if (typeof x === "string") return x;
   if (typeof x.detail === "string") return x.detail;
+  // FastAPI validation errors (422): [{loc, msg, ...}, ...]
+  if (Array.isArray(x.detail)) {
+    return x.detail
+      .map((d: any) => `${(d.loc || []).slice(1).join(".")}: ${d.msg}`)
+      .join("; ");
+  }
   if (typeof x.message === "string") return x.message;
   return "";
 }

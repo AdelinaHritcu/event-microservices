@@ -144,6 +144,7 @@ services:
       IDM_GRPC_PORT: 50051
       IDM_TLS_ROOT_CERT: "/certs/idm.crt"
       CLIENTS_PUBLIC_URL: ${CLIENTS_PUBLIC_URL:-http://localhost:8001}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     depends_on:
       mariadb:
         condition: service_healthy
@@ -183,6 +184,7 @@ services:
 
       DATA_SERVICE_URL: http://pos-events-manager:8000
       EVENTS_PUBLIC_URL: ${EVENTS_PUBLIC_URL:-http://localhost:8000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     depends_on:
       mongo:
         condition: service_healthy

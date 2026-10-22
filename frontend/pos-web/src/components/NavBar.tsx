@@ -17,16 +17,24 @@ const LINKS: Record<string, [string, string][]> = {
   ],
   "owner-event": [
     ["/events", "My events"],
-    ["/packages", "Packages"],
+    ["/packages", "My packages"],
     ["/buyers", "Buyers"],
-    ["/browse/events", "Browse"],
+    ["/browse/events", "All events"],
+    ["/browse/packages", "All packages"],
   ],
   client: [
     ["/browse/events", "Events"],
     ["/browse/packages", "Packages"],
     ["/my-tickets", "My tickets"],
+    ["/profile", "Profile"],
   ],
 };
+
+// guests (not logged in) can browse the public event data
+const GUEST: [string, string][] = [
+  ["/browse/events", "Events"],
+  ["/browse/packages", "Packages"],
+];
 
 export function NavBar() {
   const { state, logout } = useAuth();
@@ -51,7 +59,11 @@ export function NavBar() {
               {label}
             </Link>
           ))
-        : null}
+        : GUEST.map(([to, label]) => (
+            <Link key={to} to={to} style={linkStyle(loc.pathname === to)}>
+              {label}
+            </Link>
+          ))}
 
       <div style={{ flex: 1 }} />
 
