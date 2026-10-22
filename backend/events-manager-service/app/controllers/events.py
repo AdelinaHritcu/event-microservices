@@ -1,12 +1,13 @@
 from typing import Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Path, status
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from peewee import IntegrityError
 
 from app.controllers.deps import get_db
 from app.controllers.packages import build_package_item, require_package_owner
 from app.controllers.tickets import raise_for, paged_links
+from app.links import client_links
 from app.dtos.events_schemas import (
     EventIn,
     EventOut,
@@ -18,7 +19,7 @@ from app.dtos.packages_schemas import PackageListResponse
 from app.dtos.tickets_schemas import TicketListResponse, TicketIn, TicketOut
 from app.services import events_service, packages_service
 from app.services.tickets_service import TicketsService
-from app.security.auth import require_roles, Principal, require_owner_or_admin
+from app.security.auth import require_roles, Principal, require_owner
 
 router = APIRouter(
     prefix="/api/event-manager/events",
@@ -49,7 +50,7 @@ def get_event_or_404(event_id: int) -> dict:
 
 def require_event_owner(event_id: int, p: Principal) -> dict:
     e = get_event_or_404(event_id)
-    require_owner_or_admin(str(e["id_owner"]), p)
+    require_owner(str(e["id_owner"]), p)
     return e
 
 
@@ -62,14 +63,17 @@ def list_events(
     name: Optional[str] = Query(None, description="Partial match on name"),
     location: Optional[str] = Query(None, description="Partial match on location"),
     available_tickets: Optional[int] = Query(None, ge=0, description="Minimum available tickets"),
+    id_owner: Optional[int] = Query(None, ge=1, description="Only events created by this owner"),
     db=Depends(get_db),
 ):
+    """Public: guests can browse events (Lab 6)."""
     rows, total = events_service.list_events(
         page=page,
         per_page=items_per_page,
         name=name,
         location=location,
         available_tickets=available_tickets,
+        id_owner=id_owner,
     )
 
     q = ""
@@ -79,13 +83,15 @@ def list_events(
         q += f"&location={location}"
     if available_tickets is not None:
         q += f"&available_tickets={available_tickets}"
+    if id_owner is not None:
+        q += f"&id_owner={id_owner}"
 
     return EventListResponse(
         items=[to_event_item(r) for r in rows],
         page=page,
         items_per_page=items_per_page,
         total=total,
-        links=paged_links(BASE, page, items_per_page, total, "/api/event-manager", q),
+        links={**paged_links(BASE, page, items_per_page, total, "/api/event-manager", q), **client_links()},
     )
 
 
@@ -98,10 +104,11 @@ def get_event(event_id: int = Path(..., ge=1), db=Depends(get_db)):
 def create_event(
     data: EventIn,
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     # an owner-event always creates events for itself
-    owner_id = int(p.sub) if p.role == "owner-event" else data.id_owner
+    # ID_OWNER is always taken from the JWS (Lab 4 / 3.2.2)
+    owner_id = int(p.sub)
     try:
         created = events_service.create_event(data, owner_id)
     except IntegrityError:
@@ -109,29 +116,43 @@ def create_event(
     return to_event_out(created)
 
 
-@router.put("/{event_id}", response_model=EventOut)
-def update_event(
+@router.put(
+    "/{event_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={201: {"model": EventOut, "description": "Created at the given id"}, 204: {"description": "Replaced"}},
+)
+def put_event(
     data: EventIn,
     event_id: int = Path(..., ge=1),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
+    """Lab 2: PUT creates the resource (201) or replaces it (204)."""
+    owner_id = int(p.sub)
+    if events_service.get_event(event_id) is None:
+        try:
+            created = events_service.create_event(data, owner_id, event_id)
+        except IntegrityError:
+            raise HTTPException(status_code=409, detail="Event name already exists")
+        body = to_event_out(created).model_dump(by_alias=True)
+        return JSONResponse(status_code=201, content=body, headers={"Location": f"{BASE}/{event_id}"})
+
     require_event_owner(event_id, p)
-    owner_id = int(p.sub) if p.role == "owner-event" else None
 
     try:
         code, res = events_service.update_event(event_id, data, owner_id)
     except IntegrityError:
         raise HTTPException(status_code=409, detail="Event name already exists")
     raise_for(code, res)
-    return to_event_out(res)
+    # Lab 2: PUT that replaces an existing resource -> 204 No Content
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event(
     event_id: int = Path(..., ge=1),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     require_event_owner(event_id, p)
 
@@ -177,7 +198,7 @@ def add_event_to_packet(
     event_id: int = Path(..., ge=1),
     package_id: int = Path(..., ge=1),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     package = require_package_owner(package_id, p)
     code, detail = packages_service.add_event_to_package(package, event_id)
@@ -200,7 +221,7 @@ def remove_event_from_packet(
     event_id: int = Path(..., ge=1),
     package_id: int = Path(..., ge=1),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     package = require_package_owner(package_id, p)
     code, detail = packages_service.remove_event_from_package(package, event_id)
@@ -216,7 +237,7 @@ def list_event_tickets(
     page: int = Query(1, ge=1),
     items_per_page: int = Query(10, ge=1, le=100),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     require_event_owner(event_id, p)
     items, total = TicketsService.list_tickets(
@@ -236,7 +257,7 @@ def list_event_tickets(
 def create_event_ticket(
     event_id: int = Path(..., ge=1),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     require_event_owner(event_id, p)
     code, res = TicketsService.create_ticket(TicketIn(event_id=event_id))
@@ -257,7 +278,7 @@ def get_event_ticket(
     event_id: int = Path(..., ge=1),
     code: str = Path(...),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     return TicketsService.build_ticket_out(_event_ticket_or_404(event_id, code, p))
 
@@ -267,7 +288,7 @@ def delete_event_ticket(
     event_id: int = Path(..., ge=1),
     code: str = Path(...),
     db=Depends(get_db),
-    p: Principal = Depends(require_roles("admin", "owner-event")),
+    p: Principal = Depends(require_roles("owner-event")),
 ):
     _event_ticket_or_404(event_id, code, p)
     TicketsService.delete_ticket(code)

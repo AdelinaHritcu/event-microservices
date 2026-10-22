@@ -47,15 +47,13 @@ def main():
     except grpc.RpcError as e:
         print("create_user_rpc_error:", e.code().name, e.details())
 
-    print("\n== 3) REGISTER (self-register) ==")
-    reg_email = os.getenv("TEST_REG_EMAIL", "selfreg1@test.com")
-    reg_pass = os.getenv("TEST_REG_PASS", "selfpass123")
-
+    print("\n== 3) LIST USERS (admin only) ==")
     try:
-        reg = stub.Register(idm_pb2.RegisterRequest(email=reg_email, password=reg_pass))
-        print("register:", reg.success, reg.message, "sub:", reg.sub, "role:", reg.role, "has_token:", bool(reg.token))
+        lu = stub.ListUsers(idm_pb2.ListUsersRequest(), metadata=md_bearer(admin_token))
+        for u in lu.users:
+            print(" -", u.id, u.email, u.role)
     except grpc.RpcError as e:
-        print("register_rpc_error:", e.code().name, e.details())
+        print("list_users_rpc_error:", e.code().name, e.details())
 
     print("\n== 4) LOGIN user created by admin ==")
     try:
@@ -64,7 +62,7 @@ def main():
         print("user_token_ok:", bool(user_token), "prefix:", user_token[:25])
 
         v = stub.ValidateToken(idm_pb2.TokenRequest(token=user_token))
-        print("validate_user:", v.valid, v.sub, v.role, v.message)
+        print("validate_user:", v.valid, v.sub, v.role, v.email, v.message)
 
         lo = stub.Logout(idm_pb2.TokenRequest(token=user_token), metadata=md_bearer(user_token))
         print("logout_user:", lo.success, lo.message)

@@ -8,12 +8,15 @@ class EventsRepository:
     @staticmethod
     def list_events(*, name: Optional[str] = None, location: Optional[str] = None,
                     available_tickets: Optional[int] = None,
+                    id_owner: Optional[int] = None,
                     page: int = 1, per_page: int = 10) -> Tuple[List[Event], int]:
         q = Event.select()
         if name:
             q = q.where(Event.name.contains(name))
         if location:
             q = q.where(Event.location.contains(location))
+        if id_owner is not None:
+            q = q.where(Event.id_owner == id_owner)
         if available_tickets is not None:
             sold = (
                 Ticket.select(fn.COUNT(Ticket.code))

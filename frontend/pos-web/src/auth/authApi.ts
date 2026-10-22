@@ -16,6 +16,11 @@ export async function login(email: string, password: string): Promise<string> {
   return r.access_token;
 }
 
+export async function logout(token: string): Promise<void> {
+  // invalidates the token in the IDM blacklist
+  await apiFetch<void>(AUTH_API, "/auth/logout", "POST", token);
+}
+
 export async function me(token: string): Promise<MeResponse> {
   return apiFetch<MeResponse>(AUTH_API, "/auth/me", "GET", token);
 }

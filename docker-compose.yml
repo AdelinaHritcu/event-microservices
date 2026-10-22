@@ -1,7 +1,8 @@
 services:
+  # ------------------------------------------------------------------ databases
   mariadb:
     image: mariadb:11
-    container_name: pos-mariadb
+    container_name: ${EVENTS_DB_CONTAINER:-pos-mariadb}
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${DB_NAME}
@@ -29,9 +30,8 @@ services:
       start_period: 20s
 
   mongo:
-    user: "0:0"
     image: mongo:8
-    container_name: pos-mongo
+    container_name: ${CLIENTS_DB_CONTAINER:-pos-mongo}
     restart: unless-stopped
     command: ["mongod", "--auth"]
     environment:
@@ -39,6 +39,8 @@ services:
       MONGO_INITDB_ROOT_PASSWORD_FILE: /run/secrets/mongo_admin_pass
 
       MONGO_DB_NAME: ${MONGO_DB_NAME}
+
+      MONGO_USER_ADMIN_USER: ${MONGO_USER_ADMIN_USER}
 
       MONGO_DB_OWNER_USER: ${MONGO_DB_OWNER_USER}
       MONGO_DB_OWNER_PASS_FILE: /run/secrets/mongo_db_owner_pass
@@ -52,6 +54,7 @@ services:
       - pos-network
     secrets:
       - mongo_admin_pass
+      - mongo_user_admin_pass
       - mongo_db_owner_pass
       - mongo_app_pass
     healthcheck:
@@ -65,15 +68,75 @@ services:
       retries: 10
       start_period: 20s
 
+  # IDM users live in their own SQL server (Lab 5: one container per database)
+  idm-db:
+    image: mariadb:11
+    container_name: ${IDM_DB_CONTAINER:-pos-idm-db}
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: ${IDM_DB_NAME}
+      MARIADB_USER: ${IDM_DB_USER}
+      MARIADB_PASSWORD_FILE: /run/secrets/idm_db_pass
+      MARIADB_ROOT_PASSWORD_FILE: /run/secrets/idm_db_root_pass
+    volumes:
+      - idm-db-data:/var/lib/mysql
+    networks:
+      - pos-network
+    secrets:
+      - idm_db_root_pass
+      - idm_db_pass
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--connect", "--innodb_initialized" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # ------------------------------------------------------------------ services
+  idm-service:
+    build:
+      context: ./backend/idm-service
+      dockerfile: Dockerfile
+    container_name: pos-idm-service
+    restart: unless-stopped
+    environment:
+      IDM_GRPC_PORT: "50051"
+      IDM_DB_HOST: ${IDM_DB_CONTAINER:-pos-idm-db}
+      IDM_DB_PORT: "3306"
+      IDM_DB_NAME: ${IDM_DB_NAME}
+      IDM_DB_USER: ${IDM_DB_USER}
+      IDM_DB_PASS_FILE: /run/secrets/idm_db_pass
+      IDM_JWT_SECRET: ${IDM_JWT_SECRET}
+      IDM_JWT_ISSUER: ${IDM_JWT_ISSUER}
+      IDM_JWT_TTL_SECONDS: "3600"
+      IDM_TLS_CERT: "/certs/idm.crt"
+      IDM_TLS_KEY: "/certs/idm.key"
+    depends_on:
+      idm-db:
+        condition: service_healthy
+    ports:
+      - "50051:50051"
+    volumes:
+      - ./certs:/certs:ro
+    networks:
+      - pos-network
+    secrets:
+      - idm_db_pass
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 50051), 2)" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
   events-manager-service:
-    user: "0:0"
     build:
       context: ./backend/events-manager-service
       dockerfile: Dockerfile
     container_name: pos-events-manager
     restart: unless-stopped
     environment:
-      DB_HOST: mariadb
+      DB_HOST: ${EVENTS_DB_CONTAINER:-pos-mariadb}
       DB_PORT: 3306
       DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
@@ -81,11 +144,13 @@ services:
       IDM_GRPC_HOST: pos-idm-service
       IDM_GRPC_PORT: 50051
       IDM_TLS_ROOT_CERT: "/certs/idm.crt"
+      CLIENTS_PUBLIC_URL: ${CLIENTS_PUBLIC_URL:-http://localhost:8001}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     depends_on:
       mariadb:
         condition: service_healthy
       idm-service:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8000:8000"
     networks:
@@ -99,7 +164,7 @@ services:
       retries: 10
       start_period: 20s
     volumes:
-        - ./certs:/certs:ro
+      - ./certs:/certs:ro
 
   clients-service:
     build:
@@ -108,7 +173,7 @@ services:
     container_name: pos-clients
     restart: unless-stopped
     environment:
-      MONGO_HOST: mongo
+      MONGO_HOST: ${CLIENTS_DB_CONTAINER:-pos-mongo}
       MONGO_PORT: 27017
       MONGO_DB_NAME: ${MONGO_DB_NAME}
       MONGO_APP_USER: ${MONGO_APP_USER}
@@ -119,13 +184,15 @@ services:
       IDM_TLS_ROOT_CERT: "/certs/idm.crt"
 
       DATA_SERVICE_URL: http://pos-events-manager:8000
+      EVENTS_PUBLIC_URL: ${EVENTS_PUBLIC_URL:-http://localhost:8000}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     depends_on:
       mongo:
         condition: service_healthy
       events-manager-service:
         condition: service_healthy
       idm-service:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "8001:8000"
     networks:
@@ -135,46 +202,33 @@ services:
     volumes:
       - ./certs:/certs:ro
 
-  idm-service:
-    build:
-      context: ./backend/idm-service
-      dockerfile: Dockerfile
-    container_name: pos-idm-service
-    restart: unless-stopped
-    environment:
-      IDM_GRPC_PORT: "50051"
-      IDM_SQLITE_PATH: /data/idm.db
-      IDM_TOKEN_TTL_SECONDS: "3600"
-      IDM_JWT_SECRET: ${IDM_JWT_SECRET}
-      IDM_JWT_ISSUER: ${IDM_JWT_ISSUER}
-      IDM_JWT_TTL_SECONDS: "3600"
-      IDM_TLS_CERT: "/certs/idm.crt"
-      IDM_TLS_KEY: "/certs/idm.key"
-    volumes:
-      - idm-sqlite-data:/data
-      - ./certs:/certs:ro
-    networks:
-      - pos-network
-
 volumes:
   mariadb-data:
   mongo-data:
-  idm-sqlite-data:
+  idm-db-data:
 
 networks:
   pos-network:
+    name: pos-network
     driver: bridge
 
+# one file per secret in ./secrets (see scripts/init-secrets.*); the folder is git-ignored
 secrets:
   db_root_pass:
-    file: /home/ade/pos-secrets/db_root_pass.txt
+    file: ./secrets/db_root_pass.txt
   db_user_pass:
-    file: /home/ade/pos-secrets/db_user_pass.txt
+    file: ./secrets/db_user_pass.txt
   db_admin_pass:
-    file: /home/ade/pos-secrets/db_admin_pass.txt
+    file: ./secrets/db_admin_pass.txt
   mongo_admin_pass:
-    file: /home/ade/pos-secrets/mongo_admin_pass.txt
+    file: ./secrets/mongo_admin_pass.txt
+  mongo_user_admin_pass:
+    file: ./secrets/mongo_user_admin_pass.txt
   mongo_db_owner_pass:
-    file: /home/ade/pos-secrets/mongo_db_owner_pass.txt
+    file: ./secrets/mongo_db_owner_pass.txt
   mongo_app_pass:
-    file: /home/ade/pos-secrets/mongo_app_pass.txt
+    file: ./secrets/mongo_app_pass.txt
+  idm_db_root_pass:
+    file: ./secrets/idm_db_root_pass.txt
+  idm_db_pass:
+    file: ./secrets/idm_db_pass.txt

@@ -2,22 +2,27 @@ syntax = "proto3";
 
 package idm;
 
+// IDM – Identity Management (Lab 4).
+// Login / ValidateToken are public; every other RPC requires
+// "authorization: Bearer <JWS>" metadata (see auth_interceptor.py).
 service IdmService {
   rpc Login(LoginRequest) returns (LoginResponse);
   rpc ValidateToken(TokenRequest) returns (ValidateResponse);
   rpc Logout(TokenRequest) returns (LogoutResponse);
 
-  rpc Register(RegisterRequest) returns (RegisterResponse);
+  // admin only
   rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
 }
 
 message LoginRequest {
-  string username = 1;
+  string username = 1;   // email
   string password = 2;
 }
 
 message LoginResponse {
-  string token = 1;
+  string token = 1;      // JWS, Base64Url
 }
 
 message TokenRequest {
@@ -28,7 +33,8 @@ message ValidateResponse {
   bool valid = 1;
   string sub = 2;
   string role = 3;
-  string message = 4;
+  string message = 4;    // ok | expired | invalid | blacklisted | missing
+  string email = 5;      // used by Client WebService to map user <-> client document
 }
 
 message LogoutResponse {
@@ -36,23 +42,10 @@ message LogoutResponse {
   string message = 2;
 }
 
-message RegisterRequest {
-  string email = 1;
-  string password = 2;
-}
-
-message RegisterResponse {
-  bool success = 1;
-  string message = 2;
-  string token = 3;
-  string sub = 4;
-  string role = 5;
-}
-
 message CreateUserRequest {
   string email = 1;
   string password = 2;
-  string role = 3; // "admin" | "owner-event" | "client"
+  string role = 3;       // "owner-event" | "client"
 }
 
 message CreateUserResponse {
@@ -60,4 +53,25 @@ message CreateUserResponse {
   string message = 2;
   string sub = 3;
   string role = 4;
+}
+
+message User {
+  string id = 1;
+  string email = 2;
+  string role = 3;
+}
+
+message ListUsersRequest {}
+
+message ListUsersResponse {
+  repeated User users = 1;
+}
+
+message DeleteUserRequest {
+  string id = 1;
+}
+
+message DeleteUserResponse {
+  bool success = 1;
+  string message = 2;
 }

@@ -26,7 +26,10 @@ if _version_not_supported:
 
 
 class IdmServiceStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """IDM – Identity Management (Lab 4).
+    Login / ValidateToken are public; every other RPC requires
+    "authorization: Bearer <JWS>" metadata (see auth_interceptor.py).
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -49,10 +52,28 @@ class IdmServiceStub(object):
                 request_serializer=idm__pb2.TokenRequest.SerializeToString,
                 response_deserializer=idm__pb2.LogoutResponse.FromString,
                 _registered_method=True)
+        self.CreateUser = channel.unary_unary(
+                '/idm.IdmService/CreateUser',
+                request_serializer=idm__pb2.CreateUserRequest.SerializeToString,
+                response_deserializer=idm__pb2.CreateUserResponse.FromString,
+                _registered_method=True)
+        self.ListUsers = channel.unary_unary(
+                '/idm.IdmService/ListUsers',
+                request_serializer=idm__pb2.ListUsersRequest.SerializeToString,
+                response_deserializer=idm__pb2.ListUsersResponse.FromString,
+                _registered_method=True)
+        self.DeleteUser = channel.unary_unary(
+                '/idm.IdmService/DeleteUser',
+                request_serializer=idm__pb2.DeleteUserRequest.SerializeToString,
+                response_deserializer=idm__pb2.DeleteUserResponse.FromString,
+                _registered_method=True)
 
 
 class IdmServiceServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """IDM – Identity Management (Lab 4).
+    Login / ValidateToken are public; every other RPC requires
+    "authorization: Bearer <JWS>" metadata (see auth_interceptor.py).
+    """
 
     def Login(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -67,6 +88,25 @@ class IdmServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Logout(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateUser(self, request, context):
+        """admin only
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ListUsers(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def DeleteUser(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -90,6 +130,21 @@ def add_IdmServiceServicer_to_server(servicer, server):
                     request_deserializer=idm__pb2.TokenRequest.FromString,
                     response_serializer=idm__pb2.LogoutResponse.SerializeToString,
             ),
+            'CreateUser': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateUser,
+                    request_deserializer=idm__pb2.CreateUserRequest.FromString,
+                    response_serializer=idm__pb2.CreateUserResponse.SerializeToString,
+            ),
+            'ListUsers': grpc.unary_unary_rpc_method_handler(
+                    servicer.ListUsers,
+                    request_deserializer=idm__pb2.ListUsersRequest.FromString,
+                    response_serializer=idm__pb2.ListUsersResponse.SerializeToString,
+            ),
+            'DeleteUser': grpc.unary_unary_rpc_method_handler(
+                    servicer.DeleteUser,
+                    request_deserializer=idm__pb2.DeleteUserRequest.FromString,
+                    response_serializer=idm__pb2.DeleteUserResponse.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'idm.IdmService', rpc_method_handlers)
@@ -99,7 +154,10 @@ def add_IdmServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class IdmService(object):
-    """Missing associated documentation comment in .proto file."""
+    """IDM – Identity Management (Lab 4).
+    Login / ValidateToken are public; every other RPC requires
+    "authorization: Bearer <JWS>" metadata (see auth_interceptor.py).
+    """
 
     @staticmethod
     def Login(request,
@@ -172,6 +230,87 @@ class IdmService(object):
             '/idm.IdmService/Logout',
             idm__pb2.TokenRequest.SerializeToString,
             idm__pb2.LogoutResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateUser(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/idm.IdmService/CreateUser',
+            idm__pb2.CreateUserRequest.SerializeToString,
+            idm__pb2.CreateUserResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ListUsers(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/idm.IdmService/ListUsers',
+            idm__pb2.ListUsersRequest.SerializeToString,
+            idm__pb2.ListUsersResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def DeleteUser(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/idm.IdmService/DeleteUser',
+            idm__pb2.DeleteUserRequest.SerializeToString,
+            idm__pb2.DeleteUserResponse.FromString,
             options,
             channel_credentials,
             insecure,

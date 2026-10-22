@@ -14,7 +14,7 @@ class Event(BaseModel):
     id = AutoField()
     id_owner = IntegerField(index=True)
     name = CharField(unique=True, max_length=128)
-    location = CharField(max_length=128)
+    location = CharField(max_length=128, null=True)
     description = TextField(null=True)
     total_seats = IntegerField(
         null=True,
@@ -30,7 +30,7 @@ class Package(BaseModel):
     id = AutoField()
     id_owner = IntegerField(index=True)
     name = CharField(unique=True, max_length=128)
-    location = CharField(max_length=128)
+    location = CharField(max_length=128, null=True)
     description = TextField(null=True)
     total_seats = IntegerField(
         null=True,

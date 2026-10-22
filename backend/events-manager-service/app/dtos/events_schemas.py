@@ -8,19 +8,21 @@ class Link(BaseModel):
 
 
 class EventIn(BaseModel):
-    id_owner: int = Field(
+    id_owner: Optional[int] = Field(
+        default=None,
         ge=1,
-        description="ID of the user who owns the event."
+        description="Ignored: the owner is always taken from the JWS (sub).",
     )
     name: str = Field(
         min_length=3,
         max_length=100,
         description="Name of the event."
     )
-    location: str = Field(
+    location: Optional[str] = Field(
+        default=None,
         min_length=3,
         max_length=100,
-        description="Location of the event."
+        description="Location of the event (optional)."
     )
     description: Optional[str] = Field(
         default=None,
@@ -43,7 +45,7 @@ class EventOut(BaseModel):
     id: int
     id_owner: int
     name: str
-    location: str
+    location: Optional[str] = None
     description: Optional[str] = None
     total_seats: Optional[int] = Field(default=None, ge=0)
     available_seats: Optional[int] = Field(default=None, ge=0)
@@ -61,7 +63,7 @@ class EventItem(BaseModel):
     id: int
     id_owner: int
     name: str
-    location: str
+    location: Optional[str] = None
     description: Optional[str] = None
     total_seats: Optional[int] = Field(default=None, ge=0)
     available_seats: Optional[int] = Field(default=None, ge=0)

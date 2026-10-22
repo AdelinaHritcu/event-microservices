@@ -29,12 +29,13 @@ class AuthInterceptor(grpc.ServerInterceptor):
     PUBLIC_METHODS = {
         "/idm.IdmService/Login",
         "/idm.IdmService/ValidateToken",
-        "/idm.IdmService/Register",
     }
 
     ROLE_RULES = {
         "/idm.IdmService/Logout": {"admin", "owner-event", "client"},
         "/idm.IdmService/CreateUser": {"admin"},
+        "/idm.IdmService/ListUsers": {"admin"},
+        "/idm.IdmService/DeleteUser": {"admin"},
     }
 
     def intercept_service(
@@ -67,7 +68,7 @@ class AuthInterceptor(grpc.ServerInterceptor):
             jti = str(payload.get("jti", ""))
             role = str(payload.get("role", ""))
 
-            if jti and token_blacklist.is_blacklisted(jti):
+            if (jti and token_blacklist.is_blacklisted(jti)) or token_blacklist.is_token_blacklisted(token):
                 context.abort(grpc.StatusCode.UNAUTHENTICATED, "token revoked")
 
             allowed_roles = self.ROLE_RULES.get(method)

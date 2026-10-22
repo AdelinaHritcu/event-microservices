@@ -2,6 +2,7 @@ from typing import Optional
 
 from app.repositories.events_repo import EventsRepository
 from app.repositories.packages_repo import PackagesRepository
+from app.links import buy_ticket_link, client_links
 
 
 def _links(e_id: int):
@@ -11,6 +12,8 @@ def _links(e_id: int):
         "parent": {"href": "/api/event-manager/events", "type": "GET"},
         "tickets": {"href": f"{base}/tickets", "type": "GET"},
         "event-packets": {"href": f"{base}/event-packets", "type": "GET"},
+        **buy_ticket_link(),
+        **client_links(),
     }
 
 
@@ -35,11 +38,13 @@ def list_events(
     name: Optional[str] = None,
     location: Optional[str] = None,
     available_tickets: Optional[int] = None,
+    id_owner: Optional[int] = None,
 ):
     events, total = EventsRepository.list_events(
         name=name,
         location=location,
         available_tickets=available_tickets,
+        id_owner=id_owner,
         page=page,
         per_page=per_page,
     )
@@ -53,9 +58,11 @@ def get_event(event_id: int):
     return _to_dict(e)
 
 
-def create_event(data, owner_id: int):
+def create_event(data, owner_id: int, event_id: Optional[int] = None):
     payload = data.model_dump() if hasattr(data, "model_dump") else data.dict()
     payload["id_owner"] = owner_id
+    if event_id is not None:
+        payload["id"] = event_id  # PUT on a new URI: the client chose the identifier
     e = EventsRepository.create_event(payload)
     return get_event(e.id)
 

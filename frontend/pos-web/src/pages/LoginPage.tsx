@@ -23,7 +23,7 @@ export function LoginPage() {
     setSubmitting(true);
     try {
       await login(email, password);
-      nav("/clients", { replace: true });
+      nav("/", { replace: true });
     } catch (err: any) {
       setError(err?.detail || "login failed");
     } finally {
@@ -41,17 +41,8 @@ export function LoginPage() {
           </div>
 
           <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button
-              style={ui.button}
-              onClick={() => nav("/clients", { replace: true })}
-            >
-              Go to Clients
-            </button>
-            <button
-              style={ui.button}
-              onClick={() => nav("/events", { replace: true })}
-            >
-              Go to Events
+            <button style={ui.button} onClick={() => nav("/", { replace: true })}>
+              Continue
             </button>
           </div>
         </div>

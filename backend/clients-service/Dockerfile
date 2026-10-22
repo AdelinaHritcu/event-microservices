@@ -9,22 +9,13 @@ RUN groupadd --gid ${GID} ${USER} \
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    pkg-config \
-    default-libmysqlclient-dev \
- && rm -rf /var/lib/apt/lists/*
-
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY proto ./proto
 COPY app ./app
 
-RUN python -m grpc_tools.protoc -I ./proto \
-  --python_out=. \
-  --grpc_python_out=. \
-  ./proto/idm.proto
+# gRPC stubs (app/idm_pb2*.py) are generated from proto/idm.proto and committed
 
 RUN mkdir -p /app/logs \
  && chown -R ${USER}:${USER} /app
